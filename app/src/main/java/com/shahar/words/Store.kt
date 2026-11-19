@@ -15,7 +15,7 @@ import org.json.JSONObject
 import java.time.LocalDate
 import kotlin.random.Random
 
-data class Placement(val x: Float, val y: Float, val inRoom: Boolean)
+data class Placement(val x: Float, val y: Float, val inRoom: Boolean, val room: Int = 0)
 
 data class ShopItem(
     val id: String,
@@ -49,6 +49,10 @@ val SHOP = listOf(
     ShopItem("piano", "🎹", "פסנתר", "piano", 200, 60),
     ShopItem("cat", "🐱", "חתול", "cat", 250, 48),
     ShopItem("dog", "🐶", "כלב", "dog", 250, 48),
+    ShopItem("watermelon", "🍉", "אבטיח", "watermelon", 40, 44),
+    ShopItem("plates", "🍽️", "צלחות", "plates", 50, 44),
+    ShopItem("pizza", "🍕", "פיצה", "pizza", 60, 44),
+    ShopItem("teapot", "🫖", "קנקן תה", "teapot", 70, 44),
     ShopItem("unicorn", "🦄", "חד קרן", "unicorn", 400, 56),
 )
 
@@ -60,6 +64,8 @@ val WALLS = listOf(
     WallColor("lavender", "סגול", Color(0xFFE3D7FF), 80),
 )
 
+val ROOMS = listOf("חדר שינה", "חדר אוכל", "סלון")
+
 object Store {
     private lateinit var prefs: SharedPreferences
     private lateinit var appContext: Context
@@ -70,7 +76,8 @@ object Store {
     var examDay by mutableLongStateOf(LocalDate.of(2026, 11, 24).toEpochDay())
     var reminderHour by mutableIntStateOf(17)
     var reminderMinute by mutableIntStateOf(0)
-    var wall by mutableStateOf("cream")
+    val roomWalls = mutableStateListOf("cream", "cream", "cream")
+    var room by mutableIntStateOf(0)
     val levels = mutableStateMapOf<String, Int>()
     val items = mutableStateMapOf<String, Placement>()
     val walls = mutableStateListOf("cream")
@@ -87,7 +94,10 @@ object Store {
         examDay = prefs.getLong("examDay", examDay)
         reminderHour = prefs.getInt("remH", 17)
         reminderMinute = prefs.getInt("remM", 0)
-        wall = prefs.getString("wall", "cream") ?: "cream"
+        roomWalls[0] = prefs.getString("wall", "cream") ?: "cream"
+        roomWalls[1] = prefs.getString("wall1", "cream") ?: "cream"
+        roomWalls[2] = prefs.getString("wall2", "cream") ?: "cream"
+        room = prefs.getInt("room", 0).coerceIn(0, 2)
 
         val lv = JSONObject(prefs.getString("levels", "{}") ?: "{}")
         lv.keys().forEach { k -> levels[k] = lv.getInt(k) }
@@ -95,7 +105,7 @@ object Store {
         val its = JSONObject(prefs.getString("items", "{}") ?: "{}")
         its.keys().forEach { k ->
             val o = its.getJSONObject(k)
-            items[k] = Placement(o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getBoolean("r"))
+            items[k] = Placement(o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getBoolean("r"), o.optInt("m", 0))
         }
 
         val wl = JSONArray(prefs.getString("walls", "[\"cream\"]") ?: "[\"cream\"]")
@@ -114,7 +124,7 @@ object Store {
         levels.forEach { (k, v) -> lv.put(k, v) }
         val its = JSONObject()
         items.forEach { (k, p) ->
-            its.put(k, JSONObject().put("x", p.x.toDouble()).put("y", p.y.toDouble()).put("r", p.inRoom))
+            its.put(k, JSONObject().put("x", p.x.toDouble()).put("y", p.y.toDouble()).put("r", p.inRoom).put("m", p.room))
         }
         prefs.edit()
             .putInt("points", points)
@@ -123,7 +133,10 @@ object Store {
             .putLong("examDay", examDay)
             .putInt("remH", reminderHour)
             .putInt("remM", reminderMinute)
-            .putString("wall", wall)
+            .putString("wall", roomWalls[0])
+            .putString("wall1", roomWalls[1])
+            .putString("wall2", roomWalls[2])
+            .putInt("room", room)
             .putString("levels", lv.toString())
             .putString("items", its.toString())
             .putString("walls", JSONArray(walls.toList()).toString())
@@ -195,7 +208,7 @@ object Store {
         points -= item.price
         val x = 0.1f + Random.nextFloat() * 0.6f
         val y = if (item.wall) 0.12f + Random.nextFloat() * 0.2f else 0.58f + Random.nextFloat() * 0.2f
-        items[item.id] = Placement(x, y, true)
+        items[item.id] = Placement(x, y, true, room)
         save()
         return true
     }
@@ -204,7 +217,7 @@ object Store {
         if (walls.contains(w.id) || points < w.price) return false
         points -= w.price
         walls.add(w.id)
-        wall = w.id
+        roomWalls[room] = w.id
         save()
         return true
     }
@@ -218,19 +231,24 @@ object Store {
     }
 
     fun setRoomWall(id: String) {
-        wall = id
+        roomWalls[room] = id
         save()
     }
 
     fun place(id: String, inRoom: Boolean) {
         val p = items[id] ?: return
-        items[id] = p.copy(inRoom = inRoom)
+        items[id] = if (inRoom) p.copy(inRoom = true, room = room) else p.copy(inRoom = false)
         save()
     }
 
     fun move(id: String, dx: Float, dy: Float) {
         val p = items[id] ?: return
         items[id] = p.copy(x = (p.x + dx).coerceIn(0f, 0.85f), y = (p.y + dy).coerceIn(0f, 0.85f))
+    }
+
+    fun goToRoom(r: Int) {
+        room = r.coerceIn(0, ROOMS.size - 1)
+        save()
     }
 
     fun setExam(date: LocalDate) {

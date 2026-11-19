@@ -64,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.key
 import androidx.compose.ui.unit.Dp
 
@@ -77,10 +78,65 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TopBar("הבית שלי", onBack)
-        Room(Modifier.fillMaxWidth().aspectRatio(0.9f))
-        if (Store.items.isEmpty()) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            ROOMS.forEachIndexed { i, name ->
+                val on = Store.room == i
+                Text(
+                    name,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (on) Color.White else Purple,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                        .background(if (on) Purple else Color.White)
+                        .clickable { Store.goToRoom(i) }
+                        .padding(vertical = 12.dp),
+                )
+            }
+        }
+        val buddyRooms = remember {
+            mutableStateMapOf<String, Int>().apply {
+                ownedBuddies().forEach { put(it.id, if (it.id == "boni") Store.room else Random.nextInt(ROOMS.size)) }
+            }
+        }
+        fun roomOf(b: Buddy): Int = buddyRooms[b.id] ?: Store.room
+        var news by remember { mutableStateOf<String?>(null) }
+        // Every few seconds one of the friends goes for a walk to another room.
+        LaunchedEffect(Unit) {
+            while (true) {
+                delay(Random.nextLong(7000, 14000))
+                val b = ownedBuddies().randomOrNull() ?: continue
+                val from = roomOf(b)
+                val to = (from + 1 + Random.nextInt(ROOMS.size - 1)) % ROOMS.size
+                buddyRooms[b.id] = to
+                news = when {
+                    from == Store.room -> "${b.he} יצא/ה לטייל ב${ROOMS[to]} 👋"
+                    to == Store.room -> "${b.he} באה לבקר כאן! 🎉"
+                    else -> null
+                }
+            }
+        }
+        LaunchedEffect(news) {
+            if (news != null) {
+                delay(3000)
+                news = null
+            }
+        }
+        Room(Modifier.fillMaxWidth().aspectRatio(0.9f), ownedBuddies().filter { roomOf(it) == Store.room })
+        news?.let {
+            Text(it, fontSize = 16.sp, color = Green, fontWeight = FontWeight.Bold)
+        }
+        val elsewhere = ownedBuddies().filter { roomOf(it) != Store.room }
+        if (elsewhere.isNotEmpty()) {
             Text(
-                "בוני גרה כאן, אבל החדר עדיין ריק. אספי נקודות בתרגול ותקני לה חפצים בחנות!",
+                "👀 " + elsewhere.joinToString(" · ") { "${it.he} ב${ROOMS[roomOf(it)]}" },
+                fontSize = 15.sp, color = Purple, fontWeight = FontWeight.Bold,
+            )
+        }
+        val hereItems = Store.items.values.count { it.inRoom && it.room == Store.room }
+        if (hereItems == 0) {
+            Text(
+                "החדר הזה עדיין ריק. אספי נקודות בתרגול ותקני חפצים בחנות, או החזירי חפצים מהמחסן!",
                 fontSize = 17.sp, color = Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             )
         } else {
@@ -105,12 +161,12 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                 }
             }
         }
-        Text("צבע הקיר:", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text("צבע הקיר ב${ROOMS[Store.room]}:", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             WALLS.filter { Store.walls.contains(it.id) }.forEach { w ->
                 Spacer(
                     Modifier.size(44.dp).clip(CircleShape).background(w.color)
-                        .border(if (Store.wall == w.id) 4.dp else 1.dp, Purple, CircleShape)
+                        .border(if (Store.roomWalls[Store.room] == w.id) 4.dp else 1.dp, Purple, CircleShape)
                         .clickable { Store.setRoomWall(w.id) }
                 )
             }
@@ -120,8 +176,9 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
 }
 
 @Composable
-fun Room(modifier: Modifier) {
-    val wallColor = WALLS.firstOrNull { it.id == Store.wall }?.color ?: WALLS[0].color
+fun Room(modifier: Modifier, here: List<Buddy>) {
+    val roomNo = Store.room
+    val wallColor = WALLS.firstOrNull { it.id == Store.roomWalls[roomNo] }?.color ?: WALLS[0].color
     // Positions are stored left-to-right, so the room is laid out LTR.
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
         BoxWithConstraints(modifier.clip(RoundedCornerShape(24.dp)).border(3.dp, Purple, RoundedCornerShape(24.dp))) {
@@ -131,28 +188,68 @@ fun Room(modifier: Modifier) {
                 val wallH = size.height * 0.55f
                 drawRect(wallColor, size = Size(size.width, wallH))
                 drawRect(Floor, topLeft = Offset(0f, wallH), size = Size(size.width, size.height - wallH))
-                for (i in 1..5) {
-                    val y = wallH + (size.height - wallH) * i / 6f
-                    drawLine(FloorLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
+                when (roomNo) {
+                    1 -> {
+                        // Dining room: tiled floor and a hanging lamp.
+                        val tile = size.width / 8f
+                        var row = 0
+                        var y = wallH
+                        while (y < size.height) {
+                            var col = 0
+                            while (col * tile < size.width) {
+                                if ((row + col) % 2 == 0) {
+                                    drawRect(Color(0xFFFFFFFF), Offset(col * tile, y), Size(tile, tile))
+                                } else {
+                                    drawRect(Color(0xFFB8C7E0), Offset(col * tile, y), Size(tile, tile))
+                                }
+                                col++
+                            }
+                            y += tile
+                            row++
+                        }
+                        val cx = size.width * 0.5f
+                        drawLine(Ink, Offset(cx, 0f), Offset(cx, size.height * 0.14f), strokeWidth = 4f)
+                        drawArc(Orange, 180f, 180f, true, Offset(cx - size.width * 0.09f, size.height * 0.1f),
+                            Size(size.width * 0.18f, size.height * 0.12f))
+                        drawCircle(Color(0xFFFFE14D), radius = size.width * 0.025f, center = Offset(cx, size.height * 0.165f))
+                    }
+                    2 -> {
+                        // Living room: wooden floor with a big round rug.
+                        for (i in 1..5) {
+                            val y = wallH + (size.height - wallH) * i / 6f
+                            drawLine(FloorLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
+                        }
+                        drawOval(Color(0xFFFF9EC4), Offset(size.width * 0.12f, size.height * 0.68f), Size(size.width * 0.76f, size.height * 0.24f))
+                        drawOval(Color(0xFFFFD1E3), Offset(size.width * 0.2f, size.height * 0.72f), Size(size.width * 0.6f, size.height * 0.16f))
+                    }
+                    else -> {
+                        for (i in 1..5) {
+                            val y = wallH + (size.height - wallH) * i / 6f
+                            drawLine(FloorLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
+                        }
+                    }
                 }
                 drawRect(Color.White, topLeft = Offset(0f, wallH - 10f), size = Size(size.width, 14f))
-                val wx = size.width * 0.62f
+                val wx = if (roomNo == 1) size.width * 0.08f else size.width * 0.62f
                 val wy = size.height * 0.08f
-                val ww = size.width * 0.28f
+                val ww = if (roomNo == 2) size.width * 0.3f else size.width * 0.28f
                 val wh = size.height * 0.24f
-                drawRoundRect(Color(0xFFBDE7FF), Offset(wx, wy), Size(ww, wh), CornerRadius(14f))
-                drawRoundRect(Color.White, Offset(wx, wy), Size(ww, wh), CornerRadius(14f), style = Stroke(9f))
-                drawLine(Color.White, Offset(wx + ww / 2, wy), Offset(wx + ww / 2, wy + wh), strokeWidth = 7f)
-                drawLine(Color.White, Offset(wx, wy + wh / 2), Offset(wx + ww, wy + wh / 2), strokeWidth = 7f)
-                drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(wx + ww * 0.25f, wy + wh * 0.25f))
+                val windows = if (roomNo == 2) listOf(size.width * 0.1f, size.width * 0.6f) else listOf(wx)
+                windows.forEach { x0 ->
+                    drawRoundRect(Color(0xFFBDE7FF), Offset(x0, wy), Size(ww, wh), CornerRadius(14f))
+                    drawRoundRect(Color.White, Offset(x0, wy), Size(ww, wh), CornerRadius(14f), style = Stroke(9f))
+                    drawLine(Color.White, Offset(x0 + ww / 2, wy), Offset(x0 + ww / 2, wy + wh), strokeWidth = 7f)
+                    drawLine(Color.White, Offset(x0, wy + wh / 2), Offset(x0 + ww, wy + wh / 2), strokeWidth = 7f)
+                }
+                drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(windows[0] + ww * 0.25f, wy + wh * 0.25f))
             }
             val buddySize = if (Store.buddies.size > 2) maxWidth * 0.2f else maxWidth * 0.26f
-            ownedBuddies().forEachIndexed { i, b ->
-                key(b.id) { RoomBoni(w, h, buddySize, b, i) }
+            here.forEachIndexed { i, b ->
+                key(b.id, roomNo) { RoomBoni(w, h, buddySize, b, i) }
             }
             SHOP.forEach { item ->
                 val p = Store.items[item.id]
-                if (p != null && p.inRoom) {
+                if (p != null && p.inRoom && p.room == roomNo) {
                     Text(
                         item.emoji,
                         fontSize = item.size.sp,
@@ -169,6 +266,24 @@ fun Room(modifier: Modifier) {
                             },
                     )
                 }
+            }
+            if (roomNo > 0) {
+                Text(
+                    "◀ ${ROOMS[roomNo - 1]}",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterStart).clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
+                        .background(Purple.copy(alpha = 0.85f)).clickable { Store.goToRoom(roomNo - 1) }
+                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                )
+            }
+            if (roomNo < ROOMS.size - 1) {
+                Text(
+                    "${ROOMS[roomNo + 1]} ▶",
+                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
+                    modifier = Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
+                        .background(Purple.copy(alpha = 0.85f)).clickable { Store.goToRoom(roomNo + 1) }
+                        .padding(horizontal = 10.dp, vertical = 12.dp),
+                )
             }
         }
     }
@@ -275,13 +390,15 @@ fun ShopCard(
 fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int) {
     val hour = remember { LocalTime.now().hour }
     var asleep by remember { mutableStateOf(hour >= 21 || hour < 7) }
-    var target by remember { mutableFloatStateOf(0.05f + (index * 0.22f) % 0.65f) }
+    var target by remember { mutableFloatStateOf(if (index % 2 == 0) 0f else 0.7f) }
+    var first by remember { mutableStateOf(true) }
     val rowY = 0.6f + (index % 2) * 0.08f
     var talking by remember { mutableStateOf<String?>(null) }
     val x by animateFloatAsState(target, tween(2500), label = "boniX")
     LaunchedEffect(asleep) {
         while (!asleep) {
-            delay(Random.nextLong(3500, 7000))
+            delay(if (first) 200L else Random.nextLong(3500, 7000))
+            first = false
             target = Random.nextFloat() * 0.65f
         }
     }
