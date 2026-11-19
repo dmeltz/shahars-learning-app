@@ -53,6 +53,13 @@ val SHOP = listOf(
     ShopItem("plates", "🍽️", "צלחות", "plates", 50, 44),
     ShopItem("pizza", "🍕", "פיצה", "pizza", 60, 44),
     ShopItem("teapot", "🫖", "קנקן תה", "teapot", 70, 44),
+    ShopItem("soap", "🧼", "סבון", "soap", 20, 36),
+    ShopItem("duck", "🦆", "ברווז גומי", "rubber duck", 30, 40),
+    ShopItem("tulips", "🌷", "צבעונים", "tulips", 30, 40),
+    ShopItem("butterfly", "🦋", "פרפר", "butterfly", 40, 36, wall = true),
+    ShopItem("tree", "🌳", "עץ", "tree", 120, 80),
+    ShopItem("bathtub", "🛁", "אמבטיה", "bathtub", 150, 64),
+    ShopItem("fountain", "⛲", "מזרקה", "fountain", 200, 64),
     ShopItem("unicorn", "🦄", "חד קרן", "unicorn", 400, 56),
 )
 
@@ -64,7 +71,7 @@ val WALLS = listOf(
     WallColor("lavender", "סגול", Color(0xFFE3D7FF), 80),
 )
 
-val ROOMS = listOf("חדר שינה", "חדר אוכל", "סלון")
+val ROOMS = listOf("חדר שינה", "חדר אוכל", "סלון", "חדר אמבטיה", "גינה")
 
 object Store {
     private lateinit var prefs: SharedPreferences
@@ -76,7 +83,7 @@ object Store {
     var examDay by mutableLongStateOf(LocalDate.of(2026, 11, 24).toEpochDay())
     var reminderHour by mutableIntStateOf(17)
     var reminderMinute by mutableIntStateOf(0)
-    val roomWalls = mutableStateListOf("cream", "cream", "cream")
+    val roomWalls = mutableStateListOf("cream", "cream", "cream", "sky", "cream")
     var room by mutableIntStateOf(0)
     val levels = mutableStateMapOf<String, Int>()
     val items = mutableStateMapOf<String, Placement>()
@@ -95,9 +102,10 @@ object Store {
         reminderHour = prefs.getInt("remH", 17)
         reminderMinute = prefs.getInt("remM", 0)
         roomWalls[0] = prefs.getString("wall", "cream") ?: "cream"
-        roomWalls[1] = prefs.getString("wall1", "cream") ?: "cream"
-        roomWalls[2] = prefs.getString("wall2", "cream") ?: "cream"
-        room = prefs.getInt("room", 0).coerceIn(0, 2)
+        for (i in 1 until ROOMS.size) {
+            roomWalls[i] = prefs.getString("wall$i", roomWalls[i]) ?: roomWalls[i]
+        }
+        room = prefs.getInt("room", 0).coerceIn(0, ROOMS.size - 1)
 
         val lv = JSONObject(prefs.getString("levels", "{}") ?: "{}")
         lv.keys().forEach { k -> levels[k] = lv.getInt(k) }
@@ -136,6 +144,8 @@ object Store {
             .putString("wall", roomWalls[0])
             .putString("wall1", roomWalls[1])
             .putString("wall2", roomWalls[2])
+            .putString("wall3", roomWalls[3])
+            .putString("wall4", roomWalls[4])
             .putInt("room", room)
             .putString("levels", lv.toString())
             .putString("items", its.toString())

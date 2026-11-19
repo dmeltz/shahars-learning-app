@@ -78,7 +78,10 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         TopBar("הבית שלי", onBack)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
             ROOMS.forEachIndexed { i, name ->
                 val on = Store.room == i
                 Text(
@@ -87,10 +90,10 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                     fontWeight = FontWeight.Bold,
                     color = if (on) Color.White else Purple,
                     textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f).clip(RoundedCornerShape(16.dp))
+                    modifier = Modifier.clip(RoundedCornerShape(16.dp))
                         .background(if (on) Purple else Color.White)
                         .clickable { Store.goToRoom(i) }
-                        .padding(vertical = 12.dp),
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
                 )
             }
         }
@@ -222,6 +225,53 @@ fun Room(modifier: Modifier, here: List<Buddy>) {
                         drawOval(Color(0xFFFF9EC4), Offset(size.width * 0.12f, size.height * 0.68f), Size(size.width * 0.76f, size.height * 0.24f))
                         drawOval(Color(0xFFFFD1E3), Offset(size.width * 0.2f, size.height * 0.72f), Size(size.width * 0.6f, size.height * 0.16f))
                     }
+                    3 -> {
+                        // Bathroom: tiled lower wall and floor.
+                        val t = size.width / 10f
+                        var y = wallH * 0.55f
+                        while (y < wallH) {
+                            var x = 0f
+                            while (x < size.width) {
+                                drawRect(Color(0xFF9FD8F5), Offset(x + 2f, y + 2f), Size(t - 4f, t * 0.6f - 4f))
+                                x += t
+                            }
+                            y += t * 0.6f
+                        }
+                        var fy = wallH
+                        var row = 0
+                        while (fy < size.height) {
+                            var col = 0
+                            while (col * t < size.width) {
+                                drawRect(if ((row + col) % 2 == 0) Color.White else Color(0xFFCDEBFF), Offset(col * t, fy), Size(t, t))
+                                col++
+                            }
+                            fy += t
+                            row++
+                        }
+                        drawOval(Color.White, Offset(size.width * 0.58f, size.height * 0.06f), Size(size.width * 0.22f, size.height * 0.2f))
+                        drawOval(Color(0xFFE6F6FF), Offset(size.width * 0.6f, size.height * 0.075f), Size(size.width * 0.18f, size.height * 0.17f))
+                    }
+                    4 -> {
+                        // Garden: sky, sun, clouds, a fence and grass.
+                        drawRect(Color(0xFFBDE7FF), size = Size(size.width, wallH))
+                        drawCircle(Color(0xFFFFE14D), radius = size.width * 0.08f, center = Offset(size.width * 0.82f, size.height * 0.12f))
+                        listOf(0.12f to 0.1f, 0.45f to 0.18f).forEach { (cx, cy) ->
+                            drawOval(Color.White, Offset(size.width * cx, size.height * cy), Size(size.width * 0.22f, size.height * 0.07f))
+                            drawOval(Color.White, Offset(size.width * (cx + 0.05f), size.height * (cy - 0.035f)), Size(size.width * 0.12f, size.height * 0.07f))
+                        }
+                        drawRect(Color(0xFF7ED957), Offset(0f, wallH), Size(size.width, size.height - wallH))
+                        for (i in 1..5) {
+                            val y = wallH + (size.height - wallH) * i / 6f
+                            drawLine(Color(0xFF5CC23A), Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
+                        }
+                        val post = size.width / 12f
+                        var x = post * 0.2f
+                        while (x < size.width) {
+                            drawRoundRect(Color.White, Offset(x, wallH * 0.62f), Size(post * 0.55f, wallH * 0.4f), CornerRadius(8f))
+                            x += post
+                        }
+                        drawRect(Color.White, Offset(0f, wallH * 0.72f), Size(size.width, wallH * 0.06f))
+                    }
                     else -> {
                         for (i in 1..5) {
                             val y = wallH + (size.height - wallH) * i / 6f
@@ -229,19 +279,25 @@ fun Room(modifier: Modifier, here: List<Buddy>) {
                         }
                     }
                 }
-                drawRect(Color.White, topLeft = Offset(0f, wallH - 10f), size = Size(size.width, 14f))
+                if (roomNo <= 2) drawRect(Color.White, topLeft = Offset(0f, wallH - 10f), size = Size(size.width, 14f))
                 val wx = if (roomNo == 1) size.width * 0.08f else size.width * 0.62f
                 val wy = size.height * 0.08f
                 val ww = if (roomNo == 2) size.width * 0.3f else size.width * 0.28f
                 val wh = size.height * 0.24f
-                val windows = if (roomNo == 2) listOf(size.width * 0.1f, size.width * 0.6f) else listOf(wx)
+                val windows = when (roomNo) {
+                    2 -> listOf(size.width * 0.1f, size.width * 0.6f)
+                    3, 4 -> emptyList()
+                    else -> listOf(wx)
+                }
                 windows.forEach { x0 ->
                     drawRoundRect(Color(0xFFBDE7FF), Offset(x0, wy), Size(ww, wh), CornerRadius(14f))
                     drawRoundRect(Color.White, Offset(x0, wy), Size(ww, wh), CornerRadius(14f), style = Stroke(9f))
                     drawLine(Color.White, Offset(x0 + ww / 2, wy), Offset(x0 + ww / 2, wy + wh), strokeWidth = 7f)
                     drawLine(Color.White, Offset(x0, wy + wh / 2), Offset(x0 + ww, wy + wh / 2), strokeWidth = 7f)
                 }
-                drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(windows[0] + ww * 0.25f, wy + wh * 0.25f))
+                windows.firstOrNull()?.let { x0 ->
+                    drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(x0 + ww * 0.25f, wy + wh * 0.25f))
+                }
             }
             val buddySize = if (Store.buddies.size > 2) maxWidth * 0.2f else maxWidth * 0.26f
             here.forEachIndexed { i, b ->
