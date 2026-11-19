@@ -132,6 +132,10 @@ class WordsWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.w_label, label)
             val done = if (Store.practicedToday()) " ✓" else ""
             v.setTextViewText(R.id.w_points, "⭐ ${Store.points}$done")
+            v.setImageViewResource(
+                R.id.w_boni,
+                if (Store.practicedToday()) R.drawable.boni_cheer else R.drawable.boni_happy,
+            )
             v.setOnClickPendingIntent(R.id.w_root, practiceIntent(ctx))
             return v
         }

@@ -129,8 +129,7 @@ fun QuestionView(q: Q, onDone: (Boolean, Int) -> Unit) {
 
 @Composable
 fun Prompt(text: String) {
-    Text(text, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Purple,
-        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
+    BoniSays(text, BoniMood.HAPPY, Purple, size = 60.dp, fontSize = 19)
 }
 
 @Composable
@@ -150,12 +149,10 @@ fun WordCard(text: String, english: Boolean = false, note: String = "") {
 
 @Composable
 fun Feedback(ok: Boolean, pts: Int, w: Word) {
-    val msg = if (ok) "${PRAISE.random()} +$pts ⭐" else "לא נורא! ${w.en} = ${w.he}"
-    Text(
-        msg, fontSize = 22.sp, fontWeight = FontWeight.Bold,
-        color = if (ok) Green else Orange,
-        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
-    )
+    val msg = remember(ok) {
+        if (ok) "${PRAISE.random()} +$pts ⭐" else "לא נורא! ${w.en} = ${w.he}. בפעם הבאה זה יצליח!"
+    }
+    BoniSays(msg, if (ok) BoniMood.CHEER else BoniMood.HAPPY, if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00))
 }
 
 @Composable
@@ -284,7 +281,8 @@ fun Summary(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Text(if (correct * 2 >= total) "🎉" else "💪", fontSize = 72.sp)
+        Boni(BoniMood.CHEER, 150.dp, bounce = true)
+        Text(if (correct * 2 >= total) "בוני גאה בך! 🎉" else "בוני אומרת: ממשיכות להתאמן! 💪", fontSize = 18.sp, color = Purple, fontWeight = FontWeight.Bold)
         Text("סיימת סיבוב!", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
         Text("$correct מתוך $total תשובות נכונות", fontSize = 22.sp, color = Ink)
         Text("הרווחת ⭐ $earned נקודות", fontSize = 22.sp, color = Orange, fontWeight = FontWeight.Bold)

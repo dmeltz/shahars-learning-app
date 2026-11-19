@@ -10,6 +10,14 @@
     android:paddingStart="10dp"
     android:paddingEnd="10dp">
 
+    <ImageView
+        android:id="@+id/w_boni"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:layout_marginEnd="6dp"
+        android:contentDescription="Boni"
+        android:src="@drawable/boni_happy" />
+
     <TextView
         android:id="@+id/w_num"
         android:layout_width="wrap_content"

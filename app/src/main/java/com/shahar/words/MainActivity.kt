@@ -182,7 +182,11 @@ fun HomeScreen(go: (Screen) -> Unit) {
     ) {
         val ctx = LocalContext.current
         LaunchedEffect(Unit) { Updater.startCheck(ctx, quiet = true) }
-        Text("היי שחר! 👋", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
+        BoniSays(
+            if (Store.practicedToday()) "היי שחר! כל הכבוד, כבר התאמנו היום 💪" else "היי שחר! בואי נתאמן ביחד ונאסוף נקודות לבית 💜",
+            if (Store.practicedToday()) BoniMood.CHEER else BoniMood.HAPPY,
+            size = 96.dp,
+        )
         if (Updater.state is UpdateState.Available) {
             Text(
                 "⬆️ יש גרסה חדשה לאפליקציה! לחצי כאן לעדכון",
@@ -213,10 +217,6 @@ fun HomeScreen(go: (Screen) -> Unit) {
                 trackColor = Color.White,
             )
         }
-        Text(
-            if (Store.practicedToday()) "כל הכבוד! כבר התאמנת היום 💪" else "עוד לא התאמנת היום. בואי נאסוף נקודות!",
-            fontSize = 16.sp, color = Ink, textAlign = TextAlign.Center,
-        )
         BigButton("בואי נתאמן! 🎯", Pink) { go(Screen.Practice) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BigButton("הבית שלי 🏠", Purple, Modifier.weight(1f)) { go(Screen.House) }

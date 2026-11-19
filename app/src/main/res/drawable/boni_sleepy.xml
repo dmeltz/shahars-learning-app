@@ -1,0 +1,14 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="200dp" android:height="200dp" android:viewportWidth="200" android:viewportHeight="200">
+<group android:rotation="-35" android:pivotX="70" android:pivotY="50"><path android:fillColor="#D9CCFF" android:pathData="M54,50 a16,40 0 1,0 32,0 a16,40 0 1,0 -32,0 z"/><path android:fillColor="#FFC9DC" android:pathData="M63,52 a7,28 0 1,0 14,0 a7,28 0 1,0 -14,0 z"/></group>
+<group android:rotation="35" android:pivotX="130" android:pivotY="50"><path android:fillColor="#D9CCFF" android:pathData="M114,50 a16,40 0 1,0 32,0 a16,40 0 1,0 -32,0 z"/><path android:fillColor="#FFC9DC" android:pathData="M123,52 a7,28 0 1,0 14,0 a7,28 0 1,0 -14,0 z"/></group>
+<path android:fillColor="#D9CCFF" android:pathData="M54,176 a46,34 0 1,0 92,0 a46,34 0 1,0 -92,0 z"/>
+<path android:fillColor="#E6DCFF" android:pathData="M50,108 a50,50 0 1,0 100,0 a50,50 0 1,0 -100,0 z"/>
+<path android:fillColor="#2EC27E" android:pathData="M68,146 h64 a8,8 0 0 1 8,8 v0 a8,8 0 0 1 -8,8 h-64 a8,8 0 0 1 -8,-8 v0 a8,8 0 0 1 8,-8 z"/>
+<path android:fillColor="#2EC27E" android:pathData="M124,150 h2 a6,6 0 0 1 6,6 v18 a6,6 0 0 1 -6,6 h-2 a6,6 0 0 1 -6,-6 v-18 a6,6 0 0 1 6,-6 z"/>
+<path android:fillColor="#FF8FB1" android:fillAlpha="0.6" android:pathData="M63,120 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 z"/>
+<path android:fillColor="#FF8FB1" android:fillAlpha="0.6" android:pathData="M123,120 a7,7 0 1,0 14,0 a7,7 0 1,0 -14,0 z"/>
+<path android:strokeColor="#3A2A4D" android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M74,106 Q82,112 90,106"/>
+<path android:strokeColor="#3A2A4D" android:strokeWidth="4.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M110,106 Q118,112 126,106"/>
+<path android:fillColor="#FF5C9A" android:pathData="M94,118 a6,4 0 1,0 12,0 a6,4 0 1,0 -12,0 z"/>
+<path android:strokeColor="#3A2A4D" android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round" android:pathData="M94,128 Q100,132 106,128"/>
+</vector>

@@ -49,6 +49,20 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import kotlin.random.Random
+import java.time.LocalTime
+import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.Dp
 
 private val Floor = Color(0xFFE8B98A)
 private val FloorLine = Color(0xFFD29E6C)
@@ -63,12 +77,12 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         Room(Modifier.fillMaxWidth().aspectRatio(0.9f))
         if (Store.items.isEmpty()) {
             Text(
-                "החדר עדיין ריק. אספי נקודות בתרגול ותקני חפצים בחנות!",
+                "בוני גרה כאן, אבל החדר עדיין ריק. אספי נקודות בתרגול ותקני לה חפצים בחנות!",
                 fontSize = 17.sp, color = Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             )
         } else {
             Text(
-                "גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן.",
+                "גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על בוני כדי לשמוע מה היא אומרת.",
                 fontSize = 15.sp, color = Ink,
             )
         }
@@ -129,6 +143,7 @@ fun Room(modifier: Modifier) {
                 drawLine(Color.White, Offset(wx, wy + wh / 2), Offset(wx + ww, wy + wh / 2), strokeWidth = 7f)
                 drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(wx + ww * 0.25f, wy + wh * 0.25f))
             }
+            RoomBoni(w, h, maxWidth * 0.26f)
             SHOP.forEach { item ->
                 val p = Store.items[item.id]
                 if (p != null && p.inRoom) {
@@ -227,6 +242,59 @@ fun ShopCard(
                 .background(if (owned) Color.Transparent else if (canBuy) Orange else Color(0xFFEDE7F6))
                 .clickable(enabled = !owned) { onBuy() }
                 .padding(vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+fun RoomBoni(w: Float, h: Float, size: Dp) {
+    val hour = remember { LocalTime.now().hour }
+    var asleep by remember { mutableStateOf(hour >= 21 || hour < 7) }
+    var target by remember { mutableFloatStateOf(0.4f) }
+    var talking by remember { mutableStateOf<String?>(null) }
+    val x by animateFloatAsState(target, tween(2500), label = "boniX")
+    LaunchedEffect(asleep) {
+        while (!asleep) {
+            delay(Random.nextLong(3500, 7000))
+            target = Random.nextFloat() * 0.65f
+        }
+    }
+    LaunchedEffect(talking) {
+        if (talking != null) {
+            delay(2800)
+            talking = null
+        }
+    }
+    val mood = when {
+        talking != null -> BoniMood.CHEER
+        asleep -> BoniMood.SLEEPY
+        else -> BoniMood.HAPPY
+    }
+    Box(
+        Modifier
+            .absoluteOffset { IntOffset((x * w).roundToInt(), (h * 0.6f).roundToInt()) }
+            .pointerInput(Unit) {
+                detectTapGestures {
+                    asleep = false
+                    talking = boniLines().random()
+                }
+            }
+    ) {
+        Boni(mood, size, bounce = !asleep)
+    }
+    val line = talking ?: if (asleep) "זזז... בוני ישנה. לחצי להעיר אותה" else null
+    if (line != null) {
+        Text(
+            line,
+            fontSize = 15.sp,
+            fontWeight = FontWeight.Bold,
+            color = Ink,
+            modifier = Modifier
+                .absoluteOffset { IntOffset((w * 0.05f).roundToInt(), (h * 0.42f).roundToInt()) }
+                .widthIn(max = 260.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color.White)
+                .padding(horizontal = 12.dp, vertical = 8.dp),
         )
     }
 }
