@@ -12,6 +12,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -179,7 +180,17 @@ fun HomeScreen(go: (Screen) -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
+        val ctx = LocalContext.current
+        LaunchedEffect(Unit) { Updater.startCheck(ctx, quiet = true) }
         Text("היי שחר! 👋", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
+        if (Updater.state is UpdateState.Available) {
+            Text(
+                "⬆️ יש גרסה חדשה לאפליקציה! לחצי כאן לעדכון",
+                fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Green)
+                    .clickable { go(Screen.Settings) }.padding(12.dp),
+            )
+        }
         Box(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
                 .background(Brush.horizontalGradient(listOf(Pink, Purple)))
@@ -269,6 +280,55 @@ fun SettingsScreen(onBack: () -> Unit) {
                 Store.setReminder(h, m)
                 Reminder.schedule(ctx)
             }, Store.reminderHour, Store.reminderMinute, true).show()
+        }
+        Spacer(Modifier.height(10.dp))
+        UpdateSection()
+    }
+}
+
+@Composable
+fun UpdateSection() {
+    val ctx = LocalContext.current
+    val st = Updater.state
+    Text("עדכון האפליקציה", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+    Text("הגרסה שלך: ${Updater.currentBuild(ctx)}", fontSize = 16.sp, color = Ink)
+    when (st) {
+        is UpdateState.Idle, is UpdateState.UpToDate, is UpdateState.Failed -> {
+            if (st is UpdateState.UpToDate) Text("יש לך את הגרסה הכי חדשה ✓", fontSize = 16.sp, color = Green)
+            if (st is UpdateState.Failed) Text(st.message, fontSize = 16.sp, color = Red)
+            BigButton("בדיקת עדכונים 🔄", Blue) { Updater.startCheck(ctx) }
+        }
+        is UpdateState.Checking -> Text("בודקת אם יש גרסה חדשה...", fontSize = 16.sp, color = Ink)
+        is UpdateState.Available -> {
+            Text("יש גרסה חדשה (${st.build})! 🎉", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Green)
+            BigButton("הורדה והתקנה ⬇️", Green) { Updater.startInstall(ctx) }
+        }
+        is UpdateState.Downloading -> {
+            Text("מורידה... ${st.percent}%", fontSize = 16.sp, color = Ink)
+            LinearProgressIndicator(
+                progress = { st.percent / 100f },
+                modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
+                color = Green,
+                trackColor = Color.White,
+            )
+        }
+        is UpdateState.NeedsPermission -> {
+            Text(
+                "כדי להתקין, צריך לאשר לאפליקציה להתקין עדכונים. במסך שייפתח מדליקים \"אפשר מהמקור הזה\" וחוזרים לכאן.",
+                fontSize = 16.sp, color = Ink,
+            )
+            BigButton("למסך האישור", Purple) { Updater.openInstallPermission(ctx) }
+            BigButton("אישרתי, להתקין", Green) {
+                if (Updater.canInstall(ctx)) Updater.startInstall(ctx)
+                else Updater.state = UpdateState.Failed(Updater.BLOCKED)
+            }
+        }
+        is UpdateState.Installing -> {
+            Text(
+                "נפתח מסך ההתקנה. לוחצים \"עדכון\". אם ההתקנה נחסמה, אבא יכול לעדכן מהמחשב.",
+                fontSize = 16.sp, color = Ink,
+            )
+            BigButton("בדיקת עדכונים שוב 🔄", Blue) { Updater.startCheck(ctx) }
         }
     }
 }
