@@ -121,12 +121,17 @@ class WordsWidget : AppWidgetProvider() {
         fun views(ctx: Context): RemoteViews {
             Store.init(ctx)
             val v = RemoteViews(ctx.packageName, R.layout.widget)
-            v.setTextViewText(R.id.w_days, Store.daysText())
-            v.setTextViewText(R.id.w_points, "⭐ ${Store.points} נקודות   🔥 ${Store.streak}")
-            v.setTextViewText(
-                R.id.w_status,
-                if (Store.practicedToday()) "כל הכבוד, התאמנת היום! 💪" else "עוד לא התאמנת היום"
-            )
+            val d = Store.daysUntilExam()
+            val (num, label) = when {
+                d < 0 -> "🎉" to "המבחן עבר!"
+                d == 0L -> "🍀" to "המבחן היום!"
+                d == 1L -> "1" to "יום למבחן"
+                else -> "$d" to "ימים למבחן"
+            }
+            v.setTextViewText(R.id.w_num, num)
+            v.setTextViewText(R.id.w_label, label)
+            val done = if (Store.practicedToday()) " ✓" else ""
+            v.setTextViewText(R.id.w_points, "⭐ ${Store.points}$done")
             v.setOnClickPendingIntent(R.id.w_root, practiceIntent(ctx))
             return v
         }
