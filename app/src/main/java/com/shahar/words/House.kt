@@ -369,17 +369,19 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                     }
                 }
             }
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("חפצים לחדר", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink,
-                    modifier = Modifier.padding(top = 8.dp))
-            }
-            items(SHOP) { item ->
-                val owned = Store.items.containsKey(item.id)
-                ShopCard(item.emoji, item.he, item.en, item.price, owned) {
-                    if (Store.buy(item)) {
-                        Toast.makeText(ctx, "קנית ${item.he}! הוא מחכה לך בבית 🏠", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+            ROOMS.forEachIndexed { r, roomName ->
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text("חפצים ל$roomName", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink,
+                        modifier = Modifier.padding(top = 8.dp))
+                }
+                items(SHOP.filter { it.room == r }) { item ->
+                    val owned = Store.items.containsKey(item.id)
+                    ShopCard(item.emoji, item.he, item.en, item.price, owned) {
+                        if (Store.buy(item)) {
+                            Toast.makeText(ctx, "קנית ${item.he}! מחכה לך ב$roomName 🏠", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 }
             }

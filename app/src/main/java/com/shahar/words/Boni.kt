@@ -49,9 +49,9 @@ data class Buddy(
 
 val BUDDIES = listOf(
     Buddy("boni", "בוני", "ארנבונה", 0, R.drawable.boni_happy, R.drawable.boni_cheer, R.drawable.boni_sleepy),
-    Buddy("mika", "מיקה", "ילדה עם קוקים", 400, R.drawable.mika_happy, R.drawable.mika_cheer, R.drawable.mika_sleepy),
-    Buddy("pitzi", "פיצי", "חתלתולה", 500, R.drawable.pitzi_happy, R.drawable.pitzi_cheer, R.drawable.pitzi_sleepy),
-    Buddy("blocky", "בלוקי", "דמות מקוביות", 600, R.drawable.blocky_happy, R.drawable.blocky_cheer, R.drawable.blocky_sleepy),
+    Buddy("mika", "מיקה", "ילדה עם קוקים", 800, R.drawable.mika_happy, R.drawable.mika_cheer, R.drawable.mika_sleepy),
+    Buddy("pitzi", "פיצי", "חתלתולה", 1000, R.drawable.pitzi_happy, R.drawable.pitzi_cheer, R.drawable.pitzi_sleepy),
+    Buddy("blocky", "בלוקי", "דמות מקוביות", 1200, R.drawable.blocky_happy, R.drawable.blocky_cheer, R.drawable.blocky_sleepy),
 )
 
 fun ownedBuddies(): List<Buddy> = BUDDIES.filter { Store.buddies.contains(it.id) }
