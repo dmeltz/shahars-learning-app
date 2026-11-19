@@ -2,6 +2,8 @@ package com.shahar.words
 
 import android.widget.Toast
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,6 +64,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.key
 import androidx.compose.ui.unit.Dp
 
 private val Floor = Color(0xFFE8B98A)
@@ -143,7 +146,10 @@ fun Room(modifier: Modifier) {
                 drawLine(Color.White, Offset(wx, wy + wh / 2), Offset(wx + ww, wy + wh / 2), strokeWidth = 7f)
                 drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(wx + ww * 0.25f, wy + wh * 0.25f))
             }
-            RoomBoni(w, h, maxWidth * 0.26f)
+            val buddySize = if (Store.buddies.size > 2) maxWidth * 0.2f else maxWidth * 0.26f
+            ownedBuddies().forEachIndexed { i, b ->
+                key(b.id) { RoomBoni(w, h, buddySize, b, i) }
+            }
             SHOP.forEach { item ->
                 val p = Store.items[item.id]
                 if (p != null && p.inRoom) {
@@ -180,7 +186,21 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
             modifier = Modifier.weight(1f),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("חפצים לחדר", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("חברים לבוני 🐰", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+            }
+            items(BUDDIES.filter { it.price > 0 }) { b ->
+                val owned = Store.buddies.contains(b.id)
+                ShopCard("", b.he, b.about, b.price, owned, image = b.happy) {
+                    if (Store.buyBuddy(b)) {
+                        Toast.makeText(ctx, "${b.he} עברה לגור איתך בבית! 🎉", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("חפצים לחדר", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink,
+                    modifier = Modifier.padding(top = 8.dp))
             }
             items(SHOP) { item ->
                 val owned = Store.items.containsKey(item.id)
@@ -220,6 +240,7 @@ fun ShopCard(
     price: Int,
     owned: Boolean,
     swatch: Color? = null,
+    image: Int? = null,
     onBuy: () -> Unit,
 ) {
     val canBuy = !owned && Store.points >= price
@@ -230,7 +251,11 @@ fun ShopCard(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        Text(emoji, fontSize = 44.sp)
+        if (image != null) {
+            Image(painterResource(image), contentDescription = he, modifier = Modifier.size(72.dp))
+        } else {
+            Text(emoji, fontSize = 44.sp)
+        }
         Text(he, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
         if (en.isNotEmpty()) Text(en, fontSize = 14.sp, color = Purple)
         val label = if (owned) "✓ שלך" else "⭐ $price"
@@ -247,10 +272,11 @@ fun ShopCard(
 }
 
 @Composable
-fun RoomBoni(w: Float, h: Float, size: Dp) {
+fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int) {
     val hour = remember { LocalTime.now().hour }
     var asleep by remember { mutableStateOf(hour >= 21 || hour < 7) }
-    var target by remember { mutableFloatStateOf(0.4f) }
+    var target by remember { mutableFloatStateOf(0.05f + (index * 0.22f) % 0.65f) }
+    val rowY = 0.6f + (index % 2) * 0.08f
     var talking by remember { mutableStateOf<String?>(null) }
     val x by animateFloatAsState(target, tween(2500), label = "boniX")
     LaunchedEffect(asleep) {
@@ -272,17 +298,17 @@ fun RoomBoni(w: Float, h: Float, size: Dp) {
     }
     Box(
         Modifier
-            .absoluteOffset { IntOffset((x * w).roundToInt(), (h * 0.6f).roundToInt()) }
+            .absoluteOffset { IntOffset((x * w).roundToInt(), (h * rowY).roundToInt()) }
             .pointerInput(Unit) {
                 detectTapGestures {
                     asleep = false
-                    talking = boniLines().random()
+                    talking = "${buddy.he}: " + boniLines().random()
                 }
             }
     ) {
-        Boni(mood, size, bounce = !asleep)
+        Boni(mood, size, bounce = !asleep, buddy = buddy)
     }
-    val line = talking ?: if (asleep) "זזז... בוני ישנה. לחצי להעיר אותה" else null
+    val line = talking ?: if (asleep && index == 0) "זזז... כולם ישנים. לחצי על מישהו כדי להעיר" else null
     if (line != null) {
         Text(
             line,

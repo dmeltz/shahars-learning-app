@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -27,15 +28,47 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** Boni, Shahar's bunny buddy. */
-enum class BoniMood(val res: Int) {
-    HAPPY(R.drawable.boni_happy),
-    CHEER(R.drawable.boni_cheer),
-    SLEEPY(R.drawable.boni_sleepy),
+enum class BoniMood { HAPPY, CHEER, SLEEPY }
+
+/** Shahar's buddies. Boni is free; the others are bought in the shop. */
+data class Buddy(
+    val id: String,
+    val he: String,
+    val about: String,
+    val price: Int,
+    val happy: Int,
+    val cheer: Int,
+    val sleepy: Int,
+) {
+    fun res(mood: BoniMood): Int = when (mood) {
+        BoniMood.HAPPY -> happy
+        BoniMood.CHEER -> cheer
+        BoniMood.SLEEPY -> sleepy
+    }
 }
 
+val BUDDIES = listOf(
+    Buddy("boni", "בוני", "ארנבונה", 0, R.drawable.boni_happy, R.drawable.boni_cheer, R.drawable.boni_sleepy),
+    Buddy("mika", "מיקה", "ילדה עם קוקים", 400, R.drawable.mika_happy, R.drawable.mika_cheer, R.drawable.mika_sleepy),
+    Buddy("pitzi", "פיצי", "חתלתולה", 500, R.drawable.pitzi_happy, R.drawable.pitzi_cheer, R.drawable.pitzi_sleepy),
+    Buddy("blocky", "בלוקי", "דמות מקוביות", 600, R.drawable.blocky_happy, R.drawable.blocky_cheer, R.drawable.blocky_sleepy),
+)
+
+fun ownedBuddies(): List<Buddy> = BUDDIES.filter { Store.buddies.contains(it.id) }
+
+fun randomBuddy(): Buddy = ownedBuddies().randomOrNull() ?: BUDDIES[0]
+
+/** The buddy who is cheering right now (each question can have a different one). */
+val LocalBuddy = staticCompositionLocalOf { BUDDIES[0] }
+
 @Composable
-fun Boni(mood: BoniMood, size: Dp, modifier: Modifier = Modifier, bounce: Boolean = false) {
+fun Boni(
+    mood: BoniMood,
+    size: Dp,
+    modifier: Modifier = Modifier,
+    bounce: Boolean = false,
+    buddy: Buddy = LocalBuddy.current,
+) {
     val t = rememberInfiniteTransition(label = "boni")
     val hop = t.animateFloat(
         initialValue = 0f,
@@ -44,8 +77,8 @@ fun Boni(mood: BoniMood, size: Dp, modifier: Modifier = Modifier, bounce: Boolea
         label = "hop",
     )
     Image(
-        painter = painterResource(mood.res),
-        contentDescription = "בוני",
+        painter = painterResource(buddy.res(mood)),
+        contentDescription = buddy.he,
         modifier = modifier.size(size).graphicsLayer { translationY = hop.value * density },
     )
 }

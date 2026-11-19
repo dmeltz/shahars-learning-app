@@ -74,6 +74,7 @@ object Store {
     val levels = mutableStateMapOf<String, Int>()
     val items = mutableStateMapOf<String, Placement>()
     val walls = mutableStateListOf("cream")
+    val buddies = mutableStateListOf("boni")
 
     @Synchronized
     fun init(ctx: Context) {
@@ -101,6 +102,11 @@ object Store {
         walls.clear()
         for (i in 0 until wl.length()) walls.add(wl.getString(i))
         if (!walls.contains("cream")) walls.add("cream")
+
+        val bl = JSONArray(prefs.getString("buddies", "[\"boni\"]") ?: "[\"boni\"]")
+        buddies.clear()
+        for (i in 0 until bl.length()) buddies.add(bl.getString(i))
+        if (!buddies.contains("boni")) buddies.add(0, "boni")
     }
 
     fun save() {
@@ -121,6 +127,7 @@ object Store {
             .putString("levels", lv.toString())
             .putString("items", its.toString())
             .putString("walls", JSONArray(walls.toList()).toString())
+            .putString("buddies", JSONArray(buddies.toList()).toString())
             .apply()
         WordsWidget.updateAll(appContext)
     }
@@ -198,6 +205,14 @@ object Store {
         points -= w.price
         walls.add(w.id)
         wall = w.id
+        save()
+        return true
+    }
+
+    fun buyBuddy(b: Buddy): Boolean {
+        if (buddies.contains(b.id) || points < b.price) return false
+        points -= b.price
+        buddies.add(b.id)
         save()
         return true
     }

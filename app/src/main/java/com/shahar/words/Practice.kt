@@ -119,11 +119,14 @@ fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
 
 @Composable
 fun QuestionView(q: Q, onDone: (Boolean, Int) -> Unit) {
-    when (q.type) {
-        QType.FLASH -> FlashCard(q, onDone)
-        QType.MC_EN -> MultipleChoice(q, fromEnglish = true, onDone = onDone)
-        QType.MC_HE -> MultipleChoice(q, fromEnglish = false, onDone = onDone)
-        QType.TYPE -> TypeAnswer(q, onDone)
+    val buddy = remember(q) { randomBuddy() }
+    CompositionLocalProvider(LocalBuddy provides buddy) {
+        when (q.type) {
+            QType.FLASH -> FlashCard(q, onDone)
+            QType.MC_EN -> MultipleChoice(q, fromEnglish = true, onDone = onDone)
+            QType.MC_HE -> MultipleChoice(q, fromEnglish = false, onDone = onDone)
+            QType.TYPE -> TypeAnswer(q, onDone)
+        }
     }
 }
 
@@ -281,8 +284,12 @@ fun Summary(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
-        Boni(BoniMood.CHEER, 150.dp, bounce = true)
-        Text(if (correct * 2 >= total) "בוני גאה בך! 🎉" else "בוני אומרת: ממשיכות להתאמן! 💪", fontSize = 18.sp, color = Purple, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+            ownedBuddies().forEach { Boni(BoniMood.CHEER, if (ownedBuddies().size > 2) 100.dp else 140.dp, bounce = true, buddy = it) }
+        }
+        val names = ownedBuddies().joinToString(" ו") { it.he }
+        Text(if (correct * 2 >= total) "$names גאים בך! 🎉" else "$names אומרים: ממשיכות להתאמן! 💪",
+            fontSize = 18.sp, color = Purple, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text("סיימת סיבוב!", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
         Text("$correct מתוך $total תשובות נכונות", fontSize = 22.sp, color = Ink)
         Text("הרווחת ⭐ $earned נקודות", fontSize = 22.sp, color = Orange, fontWeight = FontWeight.Bold)

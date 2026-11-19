@@ -41,6 +41,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -182,11 +183,14 @@ fun HomeScreen(go: (Screen) -> Unit) {
     ) {
         val ctx = LocalContext.current
         LaunchedEffect(Unit) { Updater.startCheck(ctx, quiet = true) }
-        BoniSays(
-            if (Store.practicedToday()) "היי שחר! כל הכבוד, כבר התאמנו היום 💪" else "היי שחר! בואי נתאמן ביחד ונאסוף נקודות לבית 💜",
-            if (Store.practicedToday()) BoniMood.CHEER else BoniMood.HAPPY,
-            size = 96.dp,
-        )
+        val greeter = remember { randomBuddy() }
+        CompositionLocalProvider(LocalBuddy provides greeter) {
+            BoniSays(
+                if (Store.practicedToday()) "היי שחר! כל הכבוד, כבר התאמנו היום 💪" else "היי שחר! בואי נתאמן ביחד ונאסוף נקודות לבית 💜",
+                if (Store.practicedToday()) BoniMood.CHEER else BoniMood.HAPPY,
+                size = 96.dp,
+            )
+        }
         if (Updater.state is UpdateState.Available) {
             Text(
                 "⬆️ יש גרסה חדשה לאפליקציה! לחצי כאן לעדכון",
