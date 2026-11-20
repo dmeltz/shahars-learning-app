@@ -90,6 +90,8 @@ const val SHAHAR = "shahar"
 const val TOMER = "tomer"
 const val NO_EXAM = Long.MIN_VALUE
 private val SHAHAR_EXAM = LocalDate.of(2026, 11, 24).toEpochDay()
+/** Tomer's gifted-screening test (stage A). */
+val TOMER_GIFTED_EXAM: Long = LocalDate.of(2026, 11, 30).toEpochDay()
 
 object Store {
     private lateinit var prefs: SharedPreferences
@@ -112,6 +114,8 @@ object Store {
     val buddies = mutableStateListOf("boni")
     /** The first, free friend. Shahar got Boni; Tomer picks his own on his first visit. */
     var starter by mutableStateOf("boni")
+    /** A parent can pause English for Tomer so the app is all about the gifted test. */
+    var englishPaused by mutableStateOf(false)
 
     val isTomer: Boolean get() = profile == TOMER
     val name: String get() = if (isTomer) "תומר" else "שחר"
@@ -151,6 +155,12 @@ object Store {
         streak = prefs.getInt("streak", 0)
         lastPracticeDay = prefs.getLong("lastDay", -1L)
         examDay = prefs.getLong("examDay", if (p == TOMER) NO_EXAM else SHAHAR_EXAM)
+        // Tomer: once, set his countdown to the gifted test. A parent can still change it in Settings.
+        if (p == TOMER && !prefs.getBoolean("giftedInit", false)) {
+            examDay = TOMER_GIFTED_EXAM
+            prefs.edit().putBoolean("giftedInit", true).putLong("examDay", examDay).apply()
+        }
+        englishPaused = p == TOMER && prefs.getBoolean("englishPaused", false)
         reminderHour = prefs.getInt("remH", 17)
         reminderMinute = prefs.getInt("remM", 0)
         val defaultWalls = listOf("cream", "cream", "cream", "sky", "cream")
@@ -213,6 +223,7 @@ object Store {
             .putString("walls", JSONArray(walls.toList()).toString())
             .putString("buddies", JSONArray(buddies.toList()).toString())
             .putString("starter", starter)
+            .putBoolean("englishPaused", englishPaused)
             .apply()
         WordsWidget.updateAll(appContext)
     }
@@ -352,6 +363,14 @@ object Store {
         examDay = date?.toEpochDay() ?: NO_EXAM
         save()
     }
+
+    fun changeEnglishPause(paused: Boolean) {
+        englishPaused = paused
+        save()
+    }
+
+    /** Tomer's test-prep screen is the main thing while English is paused. */
+    val prepFirst: Boolean get() = isTomer && englishPaused
 
     fun setReminder(h: Int, m: Int) {
         reminderHour = h
