@@ -1,7 +1,5 @@
 package com.shahar.words
 
-import android.content.Context
-import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,39 +46,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
 import kotlin.random.Random
-
-// ---------------- Hebrew read-aloud (only if the tablet has a Hebrew voice) ----------------
-
-object HeSpeaker {
-    private var tts: TextToSpeech? = null
-    var ready by mutableStateOf(false)
-        private set
-
-    fun init(ctx: Context) {
-        if (tts != null) return
-        tts = TextToSpeech(ctx.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val r = tts?.setLanguage(Locale("he", "IL")) ?: TextToSpeech.LANG_NOT_SUPPORTED
-                if (r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setSpeechRate(0.9f)
-                    ready = true
-                }
-            }
-        }
-    }
-
-    fun speak(text: String) {
-        if (ready) tts?.speak(text.replace("_____", "משהו"), TextToSpeech.QUEUE_FLUSH, null, "he")
-    }
-
-    fun shutdown() {
-        tts?.shutdown()
-        tts = null
-        ready = false
-    }
-}
 
 /** Keeps "30 + 11 = 41" in the right order inside Hebrew sentences (RTL would otherwise flip it). */
 private val MATH_RUN = Regex("[0-9❓🟦🔺(][0-9 +−×=❓🟦🔺()]*[0-9❓🟦🔺)]|[0-9]")
@@ -91,7 +57,7 @@ fun isolateMath(s: String): String = MATH_RUN.replace(s) { "⁦${it.value}⁩" }
 
 const val BLANK = "_____"
 
-fun heKey(w: HeWord) = "he:${w.word}"
+fun heKey(w: HeWord) = "he:${w.id}"
 fun heLevel(w: HeWord) = Store.levels[heKey(w)] ?: 0
 fun heKnown() = HE_WORDS.count { heLevel(it) >= 3 }
 
@@ -124,12 +90,12 @@ private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> =
 fun meaningQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
     return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", w.sentence, opts, idx,
-        "${w.word} = ${w.meaning}", mark = w.word, say = w.sentence)
+        "${w.word} = ${w.meaning}", mark = w.form, say = w.sentence)
 }
 
 fun clozeQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.word, others(w).map { it.word })
-    return ChoiceQ(heKey(w), "איזו מילה מתאימה למשפט?", w.sentence.replace(w.word, BLANK), opts, idx,
+    return ChoiceQ(heKey(w), "איזו מילה מתאימה למשפט?", w.sentence.replace(w.form, BLANK), opts, idx,
         "${w.sentence}\n${w.word} = ${w.meaning}", say = w.sentence)
 }
 
@@ -137,7 +103,7 @@ fun synonymQ(w: HeWord): ChoiceQ {
     val wrong = (others(w).map { it.syn } + others(w, false).map { it.syn }).filter { it.isNotEmpty() && it != w.syn }
     val (opts, idx) = shuffleChoice(w.syn, wrong)
     return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", w.sentence, opts, idx,
-        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.word, say = w.sentence)
+        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form, say = w.sentence)
 }
 
 fun oppositeQ(w: HeWord): ChoiceQ {
@@ -145,7 +111,7 @@ fun oppositeQ(w: HeWord): ChoiceQ {
     val wrong = listOf(w.syn).filter { it.isNotEmpty() } + others(w).map { it.opp }.filter { it.isNotEmpty() && it != w.opp } + others(w).map { it.word }
     val (opts, idx) = shuffleChoice(w.opp, wrong)
     return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", w.sentence, opts, idx,
-        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.word, say = w.sentence)
+        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form, say = w.sentence)
 }
 
 fun vocabItem(w: HeWord): PrepItem {
@@ -319,13 +285,6 @@ private fun marked(text: String, mark: String): AnnotatedString = buildAnnotated
 }
 
 @Composable
-fun SayButton(text: String) {
-    if (HeSpeaker.ready && text.isNotEmpty()) {
-        TextButton(onClick = { HeSpeaker.speak(text) }) { Text("🔊 הקראה", fontSize = 16.sp) }
-    }
-}
-
-@Composable
 fun BodyCard(q: ChoiceQ) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White)
@@ -340,7 +299,6 @@ fun BodyCard(q: ChoiceQ) {
             }
         } else {
             Text(marked(q.body, q.mark), fontSize = 24.sp, color = Ink, textAlign = TextAlign.Center, lineHeight = 34.sp)
-            SayButton(q.say)
         }
     }
 }
@@ -361,7 +319,6 @@ fun PassageView(p: Passage) {
             p.paragraphs.forEachIndexed { i, para ->
                 Text("${i + 1}.  $para", fontSize = 18.sp, color = Ink, lineHeight = 28.sp)
             }
-            SayButton(p.paragraphs.joinToString(" "))
         }
     }
 }
@@ -473,7 +430,6 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
         ) {
             Text(w.word, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Ink)
             if (w.fromSample) Text("⭐ מילה מהמבחן לדוגמה", fontSize = 14.sp, color = Orange)
-            SayButton(w.word)
         }
         if (!flipped) {
             BigButton("הפוך את הכרטיס 🔄", Purple) { flipped = true }
@@ -484,10 +440,9 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
             ) {
                 Text("הפירוש: ${w.meaning}", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Purple)
                 Text("במשפט:", fontSize = 15.sp, color = Ink)
-                Text(marked(w.sentence, w.word), fontSize = 21.sp, color = Ink, lineHeight = 30.sp)
+                Text(marked(w.sentence, w.form), fontSize = 21.sp, color = Ink, lineHeight = 30.sp)
                 if (w.syn.isNotEmpty()) Text("מילה דומה: ${w.syn}", fontSize = 17.sp, color = Ink)
                 if (w.opp.isNotEmpty()) Text("ההפך: ${w.opp}", fontSize = 17.sp, color = Ink)
-                SayButton(w.sentence)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
@@ -512,7 +467,6 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                 .border(3.dp, Orange, RoundedCornerShape(24.dp)).padding(18.dp),
         ) {
             Text(storyText(p.story), fontSize = 22.sp, color = Ink, lineHeight = 32.sp)
-            SayButton(p.story)
         }
         Text(
             listOf("שלב 1 מתוך 3: מבינים את הבעיה", "שלב 2 מתוך 3: הופכים לתרגיל", "שלב 3 מתוך 3: פותרים").getOrElse(step) { "" },
@@ -589,7 +543,6 @@ fun PrepWordsScreen(onBack: () -> Unit) {
                 val lvl = heLevel(w)
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-                        .clickable { HeSpeaker.speak(w.sentence) }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -598,7 +551,7 @@ fun PrepWordsScreen(onBack: () -> Unit) {
                     }
                     Text(w.meaning, fontSize = 16.sp, color = Ink)
                     Spacer(Modifier.width(4.dp))
-                    Text(marked(w.sentence, w.word), fontSize = 15.sp, color = Color(0xFF6B5A80))
+                    Text(marked(w.sentence, w.form), fontSize = 15.sp, color = Color(0xFF6B5A80))
                 }
             }
         }
