@@ -16,6 +16,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.net.HttpURLConnection
 import java.net.URL
 
@@ -32,7 +33,7 @@ sealed class UpdateState {
 
 /** Checks GitHub for a newer build and installs it. */
 object Updater {
-    private const val LATEST = "https://api.github.com/repos/dmeltz/shahars-learning-app/releases/latest"
+    private const val LATEST_PAGE = "https://github.com/dmeltz/shahars-learning-app/releases/latest"
 
     var state by mutableStateOf<UpdateState>(UpdateState.Idle)
     var lastUrl = ""
@@ -58,31 +59,36 @@ object Updater {
         return PackageInfoCompat.getLongVersionCode(info).toInt()
     }
 
+    /**
+     * Finds the newest build number. Uses the github.com "latest release" redirect, which is not
+     * limited like the GitHub API (60 calls an hour per home network, shared by every device).
+     */
+    private fun latestBuild(): Int {
+        val c = URL(LATEST_PAGE).openConnection() as HttpURLConnection
+        c.instanceFollowRedirects = false
+        c.connectTimeout = 10000
+        c.readTimeout = 10000
+        c.requestMethod = "HEAD"
+        try {
+            val code = c.responseCode
+            val loc = c.getHeaderField("Location") ?: throw IOException("HTTP $code")
+            return loc.substringAfterLast("/").removePrefix("build-").toInt()
+        } finally { c.disconnect() }
+    }
+
     suspend fun check(ctx: Context, quiet: Boolean = false) {
         if (!quiet) state = UpdateState.Checking
         state = try {
-            val json = withContext(Dispatchers.IO) {
-                val c = URL(LATEST).openConnection() as HttpURLConnection
-                c.connectTimeout = 10000
-                c.readTimeout = 10000
-                c.setRequestProperty("Accept", "application/vnd.github+json")
-                try { c.inputStream.bufferedReader().readText() } finally { c.disconnect() }
-            }
-            val o = JSONObject(json)
-            val build = o.getString("tag_name").removePrefix("build-").toInt()
-            val assets = o.getJSONArray("assets")
-            var url = ""
-            for (i in 0 until assets.length()) {
-                val a = assets.getJSONObject(i)
-                if (a.getString("name").endsWith(".apk")) url = a.getString("browser_download_url")
-            }
-            if (build > currentBuild(ctx) && url.isNotEmpty()) {
+            val build = withContext(Dispatchers.IO) { latestBuild() }
+            val url = "https://github.com/dmeltz/shahars-learning-app/releases/download/build-$build/shahar-words.apk"
+            if (build > currentBuild(ctx)) {
                 lastUrl = url
                 UpdateState.Available(build, url)
             }
             else if (quiet) UpdateState.Idle else UpdateState.UpToDate
         } catch (e: Exception) {
-            if (quiet) UpdateState.Idle else UpdateState.Failed("אין חיבור לאינטרנט, או ש-GitHub לא זמין כרגע.")
+            if (quiet) UpdateState.Idle
+            else UpdateState.Failed("הבדיקה לא הצליחה (${e.javaClass.simpleName}: ${e.message ?: ""}). בודקים שיש אינטרנט ומנסים שוב.")
         }
     }
 
