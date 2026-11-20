@@ -261,9 +261,8 @@ fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
                         horizontalAlignment = Alignment.CenterHorizontally,
                     ) {
                         Text(opt.emoji, fontSize = 56.sp, textAlign = TextAlign.Center)
-                        if (picked != null) {
-                            Text(opt.he, fontSize = 16.sp, color = if (bg == Color.White) Ink else Color.White)
-                        }
+                        // The Hebrew word makes clear what the picture means.
+                        Text(opt.he, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = if (bg == Color.White) Ink else Color.White)
                     }
                 }
             }

@@ -156,6 +156,66 @@ val SHAHAR_WORDS = listOf(
     p("cube", "קְיוּבּ", "cube", "🧊", alts = listOf("cub", "tube", "cab")),
 )
 
+
+/** What the picture words mean, written under each picture so it is clear. */
+val PICTURE_MEANING = mapOf(
+    "cat" to "חתול",
+    "hat" to "כובע",
+    "bat" to "עטלף",
+    "map" to "מפה",
+    "bag" to "תיק",
+    "van" to "טנדר",
+    "man" to "איש",
+    "dog" to "כלב",
+    "fox" to "שועל",
+    "box" to "קופסה",
+    "pot" to "סיר",
+    "pig" to "חזיר",
+    "six" to "שש",
+    "lip" to "שפה",
+    "bus" to "אוטובוס",
+    "sun" to "שמש",
+    "cup" to "כוס",
+    "bug" to "חרק",
+    "hen" to "תרנגולת",
+    "bed" to "מיטה",
+    "pen" to "עט",
+    "net" to "רשת",
+    "web" to "קורי עכביש",
+    "ten" to "עשר",
+    "jet" to "מטוס",
+    "ship" to "ספינה",
+    "shoe" to "נעל",
+    "fish" to "דג",
+    "cheese" to "גבינה",
+    "chair" to "כיסא",
+    "lunch" to "ארוחת צהריים",
+    "three" to "שלוש",
+    "bath" to "אמבטיה",
+    "whale" to "לווייתן",
+    "phone" to "טלפון",
+    "duck" to "ברווז",
+    "ring" to "טבעת",
+    "night" to "לילה",
+    "light" to "אור",
+    "laugh" to "צחוק",
+    "knee" to "ברך",
+    "write" to "לכתוב",
+    "tree" to "עץ",
+    "moon" to "ירח",
+    "rain" to "גשם",
+    "boat" to "סירה",
+    "cow" to "פרה",
+    "house" to "בית",
+    "car" to "מכונית",
+    "horse" to "סוס",
+    "bird" to "ציפור",
+    "cake" to "עוגה",
+    "kite" to "עפיפון",
+    "bone" to "עצם",
+    "cube" to "קובייה",
+)
+
 val TOMER_STAGES = listOf(
     PStage("t1", "1. צלילי האותיות", "כל אות והצליל שלה", TOMER_LETTERS,
         listOf(PKind.SOUND, PKind.FIRST), firstPrompt = "באיזו אות מתחילה המילה?", letters = true),
@@ -372,7 +432,23 @@ fun PhonicsQuestion(s: PStage, q: PQ, onDone: (Boolean) -> Unit) {
                         CompositionLocalProvider(
                             LocalLayoutDirection provides if (q.kind == PKind.SOUND) LayoutDirection.Rtl else LayoutDirection.Ltr,
                         ) {
-                            Text(
+                            if (q.kind == PKind.READ) {
+                                val ph = s.items.firstOrNull { it.emoji == opt }
+                                Column(
+                                    Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(bg)
+                                        .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+                                        .clickable(enabled = picked == null) {
+                                            chosen = opt
+                                            Speaker.speak(q.item.say)
+                                        }
+                                        .padding(vertical = 12.dp),
+                                    horizontalAlignment = Alignment.CenterHorizontally,
+                                ) {
+                                    Text(opt, fontSize = 48.sp, textAlign = TextAlign.Center)
+                                    Text(PICTURE_MEANING[ph?.say] ?: "", fontSize = 18.sp, fontWeight = FontWeight.Bold,
+                                        color = if (bg == Color.White) Ink else Color.White)
+                                }
+                            } else Text(
                                 if (q.kind == PKind.FIRST && s.letters) showLetters(s, opt) else opt,
                                 fontSize = if (q.kind == PKind.READ) 48.sp else 28.sp,
                                 fontWeight = FontWeight.Bold, textAlign = TextAlign.Center,
