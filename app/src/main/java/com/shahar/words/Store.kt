@@ -179,12 +179,12 @@ object Store {
         // Tomer starts with no friend until he picks one.
         starter = prefs.getString("starter", if (p == TOMER) "" else "boni") ?: ""
         // Early test builds let Tomer pick one of Shahar's friends. Ask him again with his own set.
-        if (p == TOMER && starter.isNotEmpty() && TOMER_BUDDIES.none { it.id == starter }) starter = ""
+        if (p == TOMER && starter.isNotEmpty() && ALL_BUDDIES.none { it.id == starter }) starter = ""
         val defBuddies = if (starter.isEmpty()) "[]" else "[\"$starter\"]"
         val bl = JSONArray(prefs.getString("buddies", defBuddies) ?: defBuddies)
         buddies.clear()
         for (i in 0 until bl.length()) buddies.add(bl.getString(i))
-        if (p == TOMER) buddies.retainAll { id -> TOMER_BUDDIES.any { it.id == id } }
+        buddies.retainAll { id -> ALL_BUDDIES.any { it.id == id } }
         if (starter.isNotEmpty() && !buddies.contains(starter)) buddies.add(0, starter)
     }
 

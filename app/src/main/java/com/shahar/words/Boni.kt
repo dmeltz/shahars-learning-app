@@ -51,7 +51,7 @@ val BUDDIES = listOf(
     Buddy("boni", "בוני", "ארנבונה", 0, R.drawable.boni_happy, R.drawable.boni_cheer, R.drawable.boni_sleepy),
     Buddy("mika", "מיקה", "ילדה עם קוקים", 800, R.drawable.mika_happy, R.drawable.mika_cheer, R.drawable.mika_sleepy),
     Buddy("pitzi", "פיצי", "חתלתולה", 1000, R.drawable.pitzi_happy, R.drawable.pitzi_cheer, R.drawable.pitzi_sleepy),
-    Buddy("blocky", "בלוקי", "דמות מקוביות", 1200, R.drawable.blocky_happy, R.drawable.blocky_cheer, R.drawable.blocky_sleepy),
+    Buddy("blocky", "בלוקי", "ילדת בלוקים", 1200, R.drawable.blocky_happy, R.drawable.blocky_cheer, R.drawable.blocky_sleepy),
 )
 
 
@@ -69,8 +69,47 @@ val TOMER_BUDDIES = listOf(
     Buddy("kubi", "קובי", "ילד בלוקים", 1400, R.drawable.kubi_happy, R.drawable.kubi_cheer, R.drawable.kubi_sleepy),
 )
 
-/** The buddies of whoever is playing. */
-fun buddyList(): List<Buddy> = if (Store.isTomer) TOMER_BUDDIES else BUDDIES
+
+/** Characters added later: a boy and a girl for every kind of character. */
+val MORE_BUDDIES = listOf(
+    Buddy("astro_g", "לונה", "אסטרונאוטית", 500, R.drawable.astro_g_happy, R.drawable.astro_g_cheer, R.drawable.astro_g_sleepy),
+    Buddy("goli_g", "גלי", "כדורגלנית", 600, R.drawable.goli_g_happy, R.drawable.goli_g_cheer, R.drawable.goli_g_sleepy),
+    Buddy("sali_g", "שירי", "כדורסלנית", 700, R.drawable.sali_g_happy, R.drawable.sali_g_cheer, R.drawable.sali_g_sleepy),
+    Buddy("ginga_g", "קפרי", "לוחמת קפוארה", 800, R.drawable.ginga_g_happy, R.drawable.ginga_g_cheer, R.drawable.ginga_g_sleepy),
+    Buddy("turbo_g", "ספידי", "אופנוענית", 900, R.drawable.turbo_g_happy, R.drawable.turbo_g_cheer, R.drawable.turbo_g_sleepy),
+    Buddy("ninja_g", "סאקורה", "נינג'ה", 1000, R.drawable.ninja_g_happy, R.drawable.ninja_g_cheer, R.drawable.ninja_g_sleepy),
+    Buddy("shoko", "שוקו", "חתלתול", 1000, R.drawable.shoko_happy, R.drawable.shoko_cheer, R.drawable.shoko_sleepy),
+    Buddy("lola", "לולה", "כלבלבה", 1200, R.drawable.lola_happy, R.drawable.lola_cheer, R.drawable.lola_sleepy),
+    Buddy("roni", "רוני", "קנגורו עם תינוק", 1300, R.drawable.roni_happy, R.drawable.roni_cheer, R.drawable.roni_sleepy),
+    Buddy("noam", "נועם", "ילד עם כובע", 800, R.drawable.noam_happy, R.drawable.noam_cheer, R.drawable.noam_sleepy),
+    Buddy("wizard_b", "זיגי", "קוסם", 1500, R.drawable.wizard_b_happy, R.drawable.wizard_b_cheer, R.drawable.wizard_b_sleepy),
+    Buddy("wizard_g", "סטלה", "קוסמת", 1500, R.drawable.wizard_g_happy, R.drawable.wizard_g_cheer, R.drawable.wizard_g_sleepy),
+    Buddy("dancer_b", "דני", "רקדן היפ הופ", 900, R.drawable.dancer_b_happy, R.drawable.dancer_b_cheer, R.drawable.dancer_b_sleepy),
+    Buddy("dancer_g", "בלה", "בלרינה", 900, R.drawable.dancer_g_happy, R.drawable.dancer_g_cheer, R.drawable.dancer_g_sleepy),
+    Buddy("builder_b", "טוני", "בנאי", 700, R.drawable.builder_b_happy, R.drawable.builder_b_cheer, R.drawable.builder_b_sleepy),
+    Buddy("builder_g", "לבנה", "בנאית", 700, R.drawable.builder_g_happy, R.drawable.builder_g_cheer, R.drawable.builder_g_sleepy),
+    Buddy("teacher_b", "דורון", "מורה", 600, R.drawable.teacher_b_happy, R.drawable.teacher_b_cheer, R.drawable.teacher_b_sleepy),
+    Buddy("teacher_g", "מורן", "מורה", 600, R.drawable.teacher_g_happy, R.drawable.teacher_g_cheer, R.drawable.teacher_g_sleepy),
+    Buddy("police_b", "רון", "שוטר", 900, R.drawable.police_b_happy, R.drawable.police_b_cheer, R.drawable.police_b_sleepy),
+    Buddy("police_g", "רונה", "שוטרת", 900, R.drawable.police_g_happy, R.drawable.police_g_cheer, R.drawable.police_g_sleepy),
+    Buddy("fire_b", "להב", "כבאי", 1000, R.drawable.fire_b_happy, R.drawable.fire_b_cheer, R.drawable.fire_b_sleepy),
+    Buddy("fire_g", "שלהבת", "כבאית", 1000, R.drawable.fire_g_happy, R.drawable.fire_g_cheer, R.drawable.fire_g_sleepy),
+    Buddy("manager_b", "גיל", "מנהל", 800, R.drawable.manager_b_happy, R.drawable.manager_b_cheer, R.drawable.manager_b_sleepy),
+    Buddy("manager_g", "גלית", "מנהלת", 800, R.drawable.manager_g_happy, R.drawable.manager_g_cheer, R.drawable.manager_g_sleepy),
+    Buddy("pilot_b", "רום", "טייס", 1200, R.drawable.pilot_b_happy, R.drawable.pilot_b_cheer, R.drawable.pilot_b_sleepy),
+    Buddy("pilot_g", "רומי", "טייסת", 1200, R.drawable.pilot_g_happy, R.drawable.pilot_g_cheer, R.drawable.pilot_g_sleepy),
+    Buddy("soldier_b", "טל", "חייל", 1100, R.drawable.soldier_b_happy, R.drawable.soldier_b_cheer, R.drawable.soldier_b_sleepy),
+    Buddy("soldier_g", "טליה", "חיילת", 1100, R.drawable.soldier_g_happy, R.drawable.soldier_g_cheer, R.drawable.soldier_g_sleepy),
+)
+
+/** One shop for both kids, with each boy/girl pair side by side. Each kid still owns their own. */
+val ALL_BUDDIES: List<Buddy> = run {
+    val byId = (BUDDIES + TOMER_BUDDIES + MORE_BUDDIES).associateBy { it.id }
+    listOf("boni", "bobi", "mika", "noam", "pitzi", "shoko", "chip", "lola", "kangi", "roni", "blocky", "kubi", "astro", "astro_g", "goli", "goli_g", "sali", "sali_g", "ginga", "ginga_g", "turbo", "turbo_g", "ninja", "ninja_g", "wizard_b", "wizard_g", "dancer_b", "dancer_g", "builder_b", "builder_g", "teacher_b", "teacher_g", "police_b", "police_g", "fire_b", "fire_g", "manager_b", "manager_g", "pilot_b", "pilot_g", "soldier_b", "soldier_g").mapNotNull { byId[it] }
+}
+
+/** The shop is shared by both kids. */
+fun buddyList(): List<Buddy> = ALL_BUDDIES
 
 fun ownedBuddies(): List<Buddy> = buddyList().filter { Store.buddies.contains(it.id) }
 
