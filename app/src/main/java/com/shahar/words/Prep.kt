@@ -410,12 +410,38 @@ fun PrepFeedback(ok: Boolean, pts: Int, explain: String) {
         if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00),
         size = 60.dp, fontSize = 18,
     )
-    if (explain.isNotEmpty()) {
-        Text(
-            "💡 " + isolateMath(explain), fontSize = 17.sp, color = Ink, lineHeight = 26.sp,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF6FF)).padding(12.dp),
-        )
+    if (explain.isNotEmpty()) ExplainBox(explain)
+}
+
+private val HEBREW = Regex("[\u0590-\u05FF]")
+
+/**
+ * The explanation, one line per row. A line with no Hebrew in it is an exercise: it gets its own
+ * row, written left to right, so the order of the numbers never gets flipped by the Hebrew around it.
+ */
+@Composable
+fun ExplainBox(explain: String) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF6FF)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        explain.split("\n").filter { it.isNotBlank() }.forEachIndexed { i, line ->
+            if (HEBREW.containsMatchIn(line)) {
+                Text((if (i == 0) "💡 " else "") + isolateMath(line), fontSize = 17.sp, color = Ink, lineHeight = 26.sp)
+            } else {
+                MathLine(line, 24)
+            }
+        }
     }
+}
+
+/** An exercise on its own row, left to right. */
+@Composable
+fun MathLine(text: String, size: Int) {
+    Text(
+        text, fontSize = size.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center,
+        style = TextStyle(textDirection = TextDirection.Ltr), modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -510,7 +536,7 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                 OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
                 if (chosen >= 0) {
                     val ok = chosen == exChoice.second
-                    PrepFeedback(ok, 5, if (ok) "" else "התרגיל הנכון: ${p.exercise}")
+                    PrepFeedback(ok, 5, if (ok) "" else "התרגיל הנכון:\n${p.exercise}")
                     BigButton("לשלב הבא", Purple) {
                         if (ok) pts += 5
                         step = 2
@@ -518,11 +544,15 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                 }
             }
             else -> {
-                Prompt("עכשיו פותרים: ${p.exercise} = ?")
+                Prompt("עכשיו פותרים את התרגיל:")
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White)
+                        .border(3.dp, Blue, RoundedCornerShape(20.dp)).padding(vertical = 16.dp),
+                ) { MathLine("${p.exercise} = ?", 30) }
                 OptionGrid(ansChoice.first, ansChoice.second, chosen, true) { chosen = it }
                 if (chosen >= 0) {
                     val ok = chosen == ansChoice.second
-                    PrepFeedback(ok, 10, p.why + " התשובה: ${p.answer} ${p.unit}.")
+                    PrepFeedback(ok, 10, p.why + "\nהתשובה: ${p.answer} ${p.unit}")
                     BigButton("הבא", Purple) { onDone(ok, pts + if (ok) 10 else 0) }
                 }
             }
