@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">שחר לומדת</string>
+    <string name="app_name">לומדים ומשחקים</string>
     <string name="widget_name">ספירה למבחן</string>
-    <string name="widget_title">⭐ שחר לומדת אנגלית</string>
+    <string name="widget_title">⭐ לומדים ומשחקים</string>
     <string name="widget_button">בואי נתאמן 🎯</string>
 </resources>
