@@ -32,4 +32,6 @@ jobs:
           name: Build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           files: shahar-words.apk
-          make_latest: true
+          # Only the main branch becomes "latest" (what the in-app updater offers). Other branches are test builds.
+          prerelease: ${{ github.ref_name != 'claude/project-thread-65ep8k' }}
+          make_latest: ${{ github.ref_name == 'claude/project-thread-65ep8k' }}

@@ -91,7 +91,7 @@ object Reminder {
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_star)
             .setContentTitle(Store.daysText())
-            .setContentText("בואי לתרגל כמה מילים ולאסוף נקודות ⭐")
+            .setContentText(Store.g("בואי לתרגל כמה מילים ולאסוף נקודות ⭐", "בוא לתרגל כמה מילים ולאסוף נקודות ⭐"))
             .setContentIntent(practiceIntent(ctx))
             .setAutoCancel(true)
             .build()
@@ -103,7 +103,7 @@ class ReminderWorker(ctx: Context, params: WorkerParameters) : Worker(ctx, param
     override fun doWork(): Result {
         Store.init(applicationContext)
         WordsWidget.updateAll(applicationContext)
-        if (!Store.practicedToday() && Store.daysUntilExam() >= 0) {
+        if (!Store.practicedToday() && (!Store.hasExam || Store.daysUntilExam() >= 0)) {
             Reminder.show(applicationContext)
         }
         return Result.success()
@@ -123,6 +123,7 @@ class WordsWidget : AppWidgetProvider() {
             val v = RemoteViews(ctx.packageName, R.layout.widget)
             val d = Store.daysUntilExam()
             val (num, label) = when {
+                !Store.hasExam -> "${Store.knownCount()}" to Store.g("מילים שאני יודעת", "מילים שאני יודע")
                 d < 0 -> "🎉" to "המבחן עבר!"
                 d == 0L -> "🍀" to "המבחן היום!"
                 d == 1L -> "1" to "יום למבחן"
@@ -132,7 +133,7 @@ class WordsWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.w_label, label)
             val done = if (Store.practicedToday()) " ✓" else ""
             v.setTextViewText(R.id.w_points, "⭐ ${Store.points}$done")
-            val owned = ownedBuddies().ifEmpty { listOf(BUDDIES[0]) }
+            val owned = ownedBuddies().ifEmpty { listOf(buddyList()[0]) }
             val slot = (System.currentTimeMillis() / (30 * 60 * 1000L)).toInt()
             val buddy = owned[slot % owned.size]
             v.setImageViewResource(

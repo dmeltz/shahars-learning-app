@@ -67,7 +67,7 @@ val Red = Color(0xFFFF5A5F)
 val Bg = Color(0xFFFFF4FA)
 val Ink = Color(0xFF3A2A4D)
 
-enum class Screen { Home, Practice, House, Shop, Words, Settings }
+enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics }
 
 class MainActivity : ComponentActivity() {
     private var startPractice by mutableStateOf(false)
@@ -105,14 +105,14 @@ class MainActivity : ComponentActivity() {
 
 @Composable
 fun App(startPractice: Boolean, onStarted: () -> Unit) {
-    var screen by rememberSaveable { mutableStateOf(Screen.Home) }
+    var screen by rememberSaveable { mutableStateOf(if (Store.profile == null) Screen.Who else if (Store.needsStarter) Screen.Pick else Screen.Home) }
     LaunchedEffect(startPractice) {
-        if (startPractice) {
+        if (startPractice && Store.profile != null && !Store.needsStarter) {
             screen = Screen.Practice
             onStarted()
         }
     }
-    BackHandler(enabled = screen != Screen.Home) { screen = Screen.Home }
+    BackHandler(enabled = screen != Screen.Home && Store.profile != null && !Store.needsStarter) { screen = Screen.Home }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
@@ -127,6 +127,9 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             Screen.Shop -> ShopScreen(onBack = { screen = Screen.Home }, onHouse = { screen = Screen.House })
             Screen.Words -> WordsScreen { screen = Screen.Home }
             Screen.Settings -> SettingsScreen { screen = Screen.Home }
+            Screen.Who -> WhoScreen { screen = if (Store.needsStarter) Screen.Pick else Screen.Home }
+            Screen.Pick -> PickStarterScreen { screen = Screen.Home }
+            Screen.Phonics -> PhonicsScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
         }
     }
 }
@@ -186,14 +189,14 @@ fun HomeScreen(go: (Screen) -> Unit) {
         val greeter = remember { randomBuddy() }
         CompositionLocalProvider(LocalBuddy provides greeter) {
             BoniSays(
-                if (Store.practicedToday()) "היי שחר! כל הכבוד, כבר התאמנו היום 💪" else "היי שחר! בואי נתאמן ביחד ונאסוף נקודות לבית 💜",
+                if (Store.practicedToday()) "היי ${Store.name}! כל הכבוד, כבר התאמנו היום 💪" else "היי ${Store.name}! " + Store.g("בואי", "בוא") + " נתאמן ביחד ונאסוף נקודות לבית 💜",
                 if (Store.practicedToday()) BoniMood.CHEER else BoniMood.HAPPY,
                 size = 96.dp,
             )
         }
         if (Updater.state is UpdateState.Available) {
             Text(
-                "⬆️ יש גרסה חדשה לאפליקציה! לחצי כאן לעדכון",
+                "⬆️ יש גרסה חדשה לאפליקציה! " + Store.g("לחצי", "לחץ") + " כאן לעדכון",
                 fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Green)
                     .clickable { go(Screen.Settings) }.padding(12.dp),
@@ -212,16 +215,17 @@ fun HomeScreen(go: (Screen) -> Unit) {
             StatBox("🔥 ${Store.streak}", "ימים ברצף", Red, Modifier.weight(1f))
         }
         Column(Modifier.fillMaxWidth()) {
-            Text("את כבר יודעת $known מתוך ${WORDS.size} מילים", fontSize = 16.sp, color = Ink)
+            Text(Store.g("את כבר יודעת", "אתה כבר יודע") + " $known מתוך ${Store.words.size} מילים", fontSize = 16.sp, color = Ink)
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
-                progress = { known.toFloat() / WORDS.size },
+                progress = { known.toFloat() / Store.words.size },
                 modifier = Modifier.fillMaxWidth().height(12.dp).clip(RoundedCornerShape(6.dp)),
                 color = Green,
                 trackColor = Color.White,
             )
         }
-        BigButton("בואי נתאמן! 🎯", Pink) { go(Screen.Practice) }
+        BigButton(Store.g("בואי נתאמן! 🎯", "בוא נתאמן! 🎯"), Pink) { go(Screen.Practice) }
+        BigButton("צלילים וקריאה 🔤", Green) { go(Screen.Phonics) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BigButton("הבית שלי 🏠", Purple, Modifier.weight(1f)) { go(Screen.House) }
             BigButton("חנות 🛍️", Orange, Modifier.weight(1f)) { go(Screen.Shop) }
@@ -230,6 +234,9 @@ fun HomeScreen(go: (Screen) -> Unit) {
             BigButton("כל המילים 📖", Blue, Modifier.weight(1f)) { go(Screen.Words) }
             BigButton("הגדרות ⚙️", Color(0xFF9A8FB0), Modifier.weight(1f)) { go(Screen.Settings) }
         }
+        TextButton(onClick = { go(Screen.Who) }) {
+            Text("👤 לא ${Store.name}? החלפת שחקן", fontSize = 16.sp, color = Ink)
+        }
     }
 }
 
@@ -237,17 +244,17 @@ fun HomeScreen(go: (Screen) -> Unit) {
 fun WordsScreen(onBack: () -> Unit) {
     Column(Modifier.fillMaxSize().padding(16.dp)) {
         TopBar("כל המילים", onBack)
-        Text("לחצי על מילה כדי לשמוע אותה. ★ = כמה טוב את יודעת", fontSize = 14.sp, color = Ink)
+        Text(Store.g("לחצי על מילה כדי לשמוע אותה. ★ = כמה טוב את יודעת", "לחץ על מילה כדי לשמוע אותה. ★ = כמה טוב אתה יודע"), fontSize = 14.sp, color = Ink)
         Spacer(Modifier.height(8.dp))
         LazyColumn(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(WORDS) { w ->
+            items(Store.words) { w ->
                 val lvl = Store.level(w)
                 Row(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(w.he, fontSize = 17.sp, color = Ink, modifier = Modifier.weight(1f))
+                    Text((if (w.emoji.isNotEmpty()) w.emoji + "  " else "") + w.he, fontSize = 17.sp, color = Ink, modifier = Modifier.weight(1f))
                     Text("★".repeat(lvl) + "☆".repeat(5 - lvl), color = Orange, fontSize = 14.sp)
                     Spacer(Modifier.width(10.dp))
                     TextButton(onClick = { Speaker.speak(w.en) }) {
@@ -262,23 +269,31 @@ fun WordsScreen(onBack: () -> Unit) {
 @Composable
 fun SettingsScreen(onBack: () -> Unit) {
     val ctx = LocalContext.current
-    val exam = LocalDate.ofEpochDay(Store.examDay)
+    val exam = if (Store.hasExam) LocalDate.ofEpochDay(Store.examDay) else LocalDate.now().plusMonths(1)
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         TopBar("הגדרות", onBack)
-        Text("תאריך המבחן: ${exam.dayOfMonth}.${exam.monthValue}.${exam.year}", fontSize = 20.sp, color = Ink)
-        BigButton("שינוי תאריך המבחן 📅", Blue) {
+        Text("שחקן: ${Store.name}", fontSize = 20.sp, color = Ink)
+        if (Store.hasExam) {
+            Text("תאריך המבחן: ${exam.dayOfMonth}.${exam.monthValue}.${exam.year}", fontSize = 20.sp, color = Ink)
+        } else {
+            Text("אין מבחן מתוכנן, אז לא מוצגת ספירה לאחור.", fontSize = 18.sp, color = Ink)
+        }
+        BigButton(if (Store.hasExam) "שינוי תאריך המבחן 📅" else "הוספת תאריך מבחן 📅", Blue) {
             DatePickerDialog(ctx, { _, y, m, d -> Store.setExam(LocalDate.of(y, m + 1, d)) },
                 exam.year, exam.monthValue - 1, exam.dayOfMonth).show()
+        }
+        if (Store.hasExam && Store.isTomer) {
+            TextButton(onClick = { Store.setExam(null) }) { Text("בלי מבחן (להסתיר את הספירה לאחור)", fontSize = 16.sp) }
         }
         Spacer(Modifier.height(10.dp))
         Text(
             "תזכורת יומית בשעה %02d:%02d".format(Store.reminderHour, Store.reminderMinute),
             fontSize = 20.sp, color = Ink,
         )
-        Text("התזכורת לא תופיע אם כבר התאמנת באותו יום.", fontSize = 14.sp, color = Ink)
+        Text(Store.g("התזכורת לא תופיע אם כבר התאמנת באותו יום.", "התזכורת לא תופיע אם כבר התאמנת באותו יום."), fontSize = 14.sp, color = Ink)
         BigButton("שינוי שעת התזכורת ⏰", Purple) {
             TimePickerDialog(ctx, { _, h, m ->
                 Store.setReminder(h, m)
@@ -302,13 +317,13 @@ fun UpdateSection() {
             if (st is UpdateState.Failed) Text(st.message, fontSize = 16.sp, color = Red)
             BigButton("בדיקת עדכונים 🔄", Blue) { Updater.startCheck(ctx) }
         }
-        is UpdateState.Checking -> Text("בודקת אם יש גרסה חדשה...", fontSize = 16.sp, color = Ink)
+        is UpdateState.Checking -> Text("בודקים אם יש גרסה חדשה...", fontSize = 16.sp, color = Ink)
         is UpdateState.Available -> {
             Text("יש גרסה חדשה (${st.build})! 🎉", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Green)
             BigButton("הורדה והתקנה ⬇️", Green) { Updater.startInstall(ctx) }
         }
         is UpdateState.Downloading -> {
-            Text("מורידה... ${st.percent}%", fontSize = 16.sp, color = Ink)
+            Text("מורידים... ${st.percent}%", fontSize = 16.sp, color = Ink)
             LinearProgressIndicator(
                 progress = { st.percent / 100f },
                 modifier = Modifier.fillMaxWidth().height(10.dp).clip(RoundedCornerShape(5.dp)),
@@ -334,5 +349,76 @@ fun UpdateSection() {
             )
             BigButton("בדיקת עדכונים שוב 🔄", Blue) { Updater.startCheck(ctx) }
         }
+    }
+}
+
+/** "Who's playing?" Each kid has their own points, house, friends and word list. */
+@Composable
+fun WhoScreen(onPicked: () -> Unit) {
+    val ctx = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(18.dp),
+    ) {
+        Spacer(Modifier.height(10.dp))
+        Row { (BUDDIES.take(2) + TOMER_BUDDIES.take(2)).forEach { Boni(BoniMood.HAPPY, 70.dp, bounce = true, buddy = it) } }
+        Text("מי משחק?", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
+        listOf(
+            Triple(SHAHAR, "שחר 🌸", Pink),
+            Triple(TOMER, "תומר 🚀", Blue),
+        ).forEach { (id, label, color) ->
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(color)
+                    .clickable {
+                        Store.choose(id)
+                        Reminder.schedule(ctx)
+                        onPicked()
+                    }
+                    .padding(vertical = 28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(label, fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                if (Store.profile == id) Text("(משחק עכשיו)", fontSize = 15.sp, color = Color.White)
+            }
+        }
+        Text("לכל אחד יש נקודות, בית וחברים משלו.", fontSize = 16.sp, color = Ink, textAlign = TextAlign.Center)
+    }
+}
+
+/** First visit: the kid chooses their first friend, who lives in the house for free. */
+@Composable
+fun PickStarterScreen(onPicked: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+    ) {
+        Text("היי ${Store.name}! 👋", fontSize = 32.sp, fontWeight = FontWeight.Bold, color = Ink)
+        Text(
+            Store.g("בחרי את החברה הראשונה שלך. היא תגור איתך בבית ותעודד אותך בתרגול!",
+                "בחר את החבר הראשון שלך. הוא יגור איתך בבית ויעודד אותך בתרגול!"),
+            fontSize = 18.sp, color = Ink, textAlign = TextAlign.Center,
+        )
+        buddyList().chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEach { b ->
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(24.dp)).background(Color.White)
+                            .clickable {
+                                Store.pickStarter(b)
+                                onPicked()
+                            }
+                            .padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Boni(BoniMood.HAPPY, 110.dp, bounce = true, buddy = b)
+                        Text(b.he, fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Purple)
+                        Text(b.about, fontSize = 14.sp, color = Ink)
+                    }
+                }
+            }
+        }
+        Text("את השאר אפשר לקנות אחר כך בחנות עם נקודות ⭐", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
     }
 }

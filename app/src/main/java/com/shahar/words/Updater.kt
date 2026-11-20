@@ -140,7 +140,7 @@ object Updater {
             ctx.startActivity(intent)
             state = UpdateState.Installing
         } catch (e: Exception) {
-            state = UpdateState.Failed("ההורדה לא הצליחה. נסי שוב, או שאבא יעדכן מהמחשב.")
+            state = UpdateState.Failed(Store.g("ההורדה לא הצליחה. נסי שוב, או שאבא יעדכן מהמחשב.", "ההורדה לא הצליחה. נסה שוב, או שאבא יעדכן מהמחשב."))
         }
     }
 
