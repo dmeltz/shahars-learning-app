@@ -44,25 +44,34 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-enum class QType { FLASH, MC_EN, MC_HE, TYPE }
+enum class QType { FLASH, MC_EN, MC_HE, TYPE, LISTEN }
 
 data class Q(val word: Word, val type: QType, val options: List<Word>)
 
 const val ROUND_SIZE = 10
+const val TOMER_ROUND_SIZE = 8
 
-/** New words start as flashcards and multiple choice; known words move on to typing. */
-fun buildRound(): List<Q> = Store.pickWords(ROUND_SIZE).map { w ->
+/**
+ * Shahar: new words start as flashcards and multiple choice; known words move on to typing.
+ * Tomer: no typing. He listens and points at pictures first, and only reads English once he knows a word.
+ */
+fun buildRound(): List<Q> = Store.pickWords(if (Store.isTomer) TOMER_ROUND_SIZE else ROUND_SIZE).map { w ->
     val lvl = Store.level(w)
-    val type = when {
+    val type = if (Store.isTomer) when {
+        lvl == 0 -> listOf(QType.FLASH, QType.LISTEN).random()
+        lvl <= 2 -> listOf(QType.LISTEN, QType.LISTEN, QType.MC_HE).random()
+        else -> listOf(QType.LISTEN, QType.MC_HE, QType.MC_EN).random()
+    } else when {
         lvl == 0 -> listOf(QType.FLASH, QType.MC_EN).random()
         lvl <= 2 -> listOf(QType.MC_EN, QType.MC_HE, QType.TYPE).random()
         else -> listOf(QType.MC_HE, QType.TYPE, QType.TYPE).random()
     }
-    val options = (WORDS.filter { it != w }.shuffled().take(3) + w).shuffled()
+    val options = (Store.words.filter { it != w }.shuffled().take(3) + w).shuffled()
     Q(w, type, options)
 }
 
-private val PRAISE = listOf("מעולה!", "כל הכבוד!", "אלופה!", "יש!", "מדהים!", "וואו!", "בדיוק!")
+private val PRAISE_F = listOf("מעולה!", "כל הכבוד!", "אלופה!", "יש!", "מדהים!", "וואו!", "בדיוק!")
+private val PRAISE_M = listOf("מעולה!", "כל הכבוד!", "אלוף!", "יש!", "מדהים!", "וואו!", "בדיוק!", "Great job!")
 
 fun normalize(s: String): String = s.trim().lowercase()
     .replace('’', '\'').replace('`', '\'')
@@ -126,6 +135,7 @@ fun QuestionView(q: Q, onDone: (Boolean, Int) -> Unit) {
             QType.MC_EN -> MultipleChoice(q, fromEnglish = true, onDone = onDone)
             QType.MC_HE -> MultipleChoice(q, fromEnglish = false, onDone = onDone)
             QType.TYPE -> TypeAnswer(q, onDone)
+            QType.LISTEN -> ListenAndPick(q, onDone)
         }
     }
 }
@@ -136,7 +146,7 @@ fun Prompt(text: String) {
 }
 
 @Composable
-fun WordCard(text: String, english: Boolean = false, note: String = "") {
+fun WordCard(text: String, english: Boolean = false, note: String = "", emoji: String = "") {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White)
             .border(3.dp, if (english) Purple else Pink, RoundedCornerShape(24.dp))
@@ -144,16 +154,17 @@ fun WordCard(text: String, english: Boolean = false, note: String = "") {
             .padding(vertical = 28.dp, horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
+        if (emoji.isNotEmpty()) Text(emoji, fontSize = 64.sp, textAlign = TextAlign.Center)
         Text(text, fontSize = 36.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center)
         if (note.isNotEmpty()) Text("($note)", fontSize = 16.sp, color = Ink)
-        if (english) Text("🔊 לחצי לשמוע", fontSize = 14.sp, color = Purple)
+        if (english) Text(Store.g("🔊 לחצי לשמוע", "🔊 לחץ לשמוע"), fontSize = 14.sp, color = Purple)
     }
 }
 
 @Composable
 fun Feedback(ok: Boolean, pts: Int, w: Word) {
     val msg = remember(ok) {
-        if (ok) "${PRAISE.random()} +$pts ⭐" else "לא נורא! ${w.en} = ${w.he}. בפעם הבאה זה יצליח!"
+        if (ok) "${(if (Store.isTomer) PRAISE_M else PRAISE_F).random()} +$pts ⭐" else "לא נורא! ${w.emoji} ${w.en} = ${w.he}. בפעם הבאה זה יצליח!".replace("  ", " ")
     }
     BoniSays(msg, if (ok) BoniMood.CHEER else BoniMood.HAPPY, if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00))
 }
@@ -163,10 +174,10 @@ fun FlashCard(q: Q, onDone: (Boolean, Int) -> Unit) {
     var flipped by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { Speaker.speak(q.word.en) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-        Prompt("כרטיסייה: את יודעת מה זה?")
-        WordCard(q.word.en, english = true, note = q.word.note)
+        Prompt(Store.g("כרטיסייה: את יודעת מה זה?", "כרטיסייה: אתה יודע מה זה?"))
+        WordCard(q.word.en, english = true, note = q.word.note, emoji = q.word.emoji)
         if (!flipped) {
-            BigButton("הפכי את הכרטיס 🔄", Purple) { flipped = true }
+            BigButton(Store.g("הפכי את הכרטיס 🔄", "הפוך את הכרטיס 🔄"), Purple) { flipped = true }
         } else {
             WordCard(q.word.he)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -183,7 +194,8 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
     LaunchedEffect(Unit) { if (fromEnglish) Speaker.speak(q.word.en) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Prompt(if (fromEnglish) "מה הפירוש בעברית?" else "איך אומרים את זה באנגלית?")
-        WordCard(if (fromEnglish) q.word.en else q.word.he, english = fromEnglish, note = if (fromEnglish) q.word.note else "")
+        WordCard(if (fromEnglish) q.word.en else q.word.he, english = fromEnglish, note = if (fromEnglish) q.word.note else "",
+            emoji = if (fromEnglish) "" else q.word.emoji)
         q.options.forEach { opt ->
             val picked = chosen
             val bg = when {
@@ -194,7 +206,7 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
             }
             val fg = if (bg == Color.White) Ink else Color.White
             Text(
-                if (fromEnglish) opt.he else opt.en,
+                if (fromEnglish && Store.isTomer) "${opt.emoji}  ${opt.he}" else if (fromEnglish) opt.he else opt.en,
                 fontSize = 22.sp, fontWeight = FontWeight.Bold, color = fg, textAlign = TextAlign.Center,
                 modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).background(bg)
                     .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
@@ -204,6 +216,56 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
                     }
                     .padding(vertical = 16.dp, horizontal = 12.dp),
             )
+        }
+        val c = chosen
+        if (c != null) {
+            val ok = c == q.word
+            Feedback(ok, 10, q.word)
+            BigButton("הבא", Purple) { onDone(ok, if (ok) 10 else 0) }
+        }
+    }
+}
+
+/** Tomer's main exercise: hear the English word and tap the right picture. No reading needed. */
+@Composable
+fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
+    var chosen by remember { mutableStateOf<Word?>(null) }
+    LaunchedEffect(Unit) { Speaker.speak(q.word.en) }
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Prompt(Store.g("הקשיבי ולחצי על התמונה הנכונה:", "תקשיב ולחץ על התמונה הנכונה:"))
+        Text(
+            "🔊 לשמוע שוב",
+            fontSize = 24.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Purple)
+                .clickable { Speaker.speak(q.word.en) }.padding(vertical = 18.dp),
+        )
+        q.options.chunked(2).forEach { pair ->
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEach { opt ->
+                    val picked = chosen
+                    val bg = when {
+                        picked == null -> Color.White
+                        opt == q.word -> Green
+                        opt == picked -> Red
+                        else -> Color.White
+                    }
+                    Column(
+                        Modifier.weight(1f).clip(RoundedCornerShape(20.dp)).background(bg)
+                            .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
+                            .clickable(enabled = picked == null) {
+                                chosen = opt
+                                Speaker.speak(q.word.en)
+                            }
+                            .padding(vertical = 14.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(opt.emoji, fontSize = 56.sp, textAlign = TextAlign.Center)
+                        if (picked != null) {
+                            Text(opt.he, fontSize = 16.sp, color = if (bg == Color.White) Ink else Color.White)
+                        }
+                    }
+                }
+            }
         }
         val c = chosen
         if (c != null) {
@@ -288,7 +350,7 @@ fun Summary(
             ownedBuddies().forEach { Boni(BoniMood.CHEER, if (ownedBuddies().size > 2) 100.dp else 140.dp, bounce = true, buddy = it) }
         }
         val names = ownedBuddies().joinToString(" ו") { it.he }
-        Text(if (correct * 2 >= total) "$names גאים בך! 🎉" else "$names אומרים: ממשיכות להתאמן! 💪",
+        Text(if (correct * 2 >= total) "$names גאים בך! 🎉" else "$names אומרים: " + Store.g("ממשיכות להתאמן! 💪", "ממשיכים להתאמן! 💪"),
             fontSize = 18.sp, color = Purple, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
         Text("סיימת סיבוב!", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Ink)
         Text("$correct מתוך $total תשובות נכונות", fontSize = 22.sp, color = Ink)

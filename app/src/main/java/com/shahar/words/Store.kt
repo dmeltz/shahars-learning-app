@@ -86,14 +86,22 @@ val WALLS = listOf(
 
 val ROOMS = listOf("חדר שינה", "חדר אוכל", "סלון", "חדר אמבטיה", "גינה")
 
+const val SHAHAR = "shahar"
+const val TOMER = "tomer"
+const val NO_EXAM = Long.MIN_VALUE
+private val SHAHAR_EXAM = LocalDate.of(2026, 11, 24).toEpochDay()
+
 object Store {
     private lateinit var prefs: SharedPreferences
+    private lateinit var meta: SharedPreferences
     private lateinit var appContext: Context
 
+    /** Who is playing. null until someone picks on a fresh install. Each kid has their own saved data. */
+    var profile by mutableStateOf<String?>(null)
     var points by mutableIntStateOf(0)
     var streak by mutableIntStateOf(0)
     var lastPracticeDay by mutableLongStateOf(-1L)
-    var examDay by mutableLongStateOf(LocalDate.of(2026, 11, 24).toEpochDay())
+    var examDay by mutableLongStateOf(SHAHAR_EXAM)
     var reminderHour by mutableIntStateOf(17)
     var reminderMinute by mutableIntStateOf(0)
     val roomWalls = mutableStateListOf("cream", "cream", "cream", "sky", "cream")
@@ -102,27 +110,61 @@ object Store {
     val items = mutableStateMapOf<String, Placement>()
     val walls = mutableStateListOf("cream")
     val buddies = mutableStateListOf("boni")
+    /** The first, free friend. Shahar got Boni; Tomer picks his own on his first visit. */
+    var starter by mutableStateOf("boni")
+
+    val isTomer: Boolean get() = profile == TOMER
+    val name: String get() = if (isTomer) "תומר" else "שחר"
+    val words: List<Word> get() = if (isTomer) TOMER_WORDS else WORDS
+    val hasExam: Boolean get() = examDay != NO_EXAM
+
+    /** Picks the girl's or the boy's form of a Hebrew phrase. */
+    fun g(fem: String, masc: String): String = if (isTomer) masc else fem
 
     @Synchronized
     fun init(ctx: Context) {
         if (::prefs.isInitialized) return
         appContext = ctx.applicationContext
-        prefs = appContext.getSharedPreferences("shahar", Context.MODE_PRIVATE)
+        meta = appContext.getSharedPreferences("profiles", Context.MODE_PRIVATE)
+        var cur = meta.getString("current", null)
+        // Shahar's phone already has her data: keep going straight to her, no picker.
+        if (cur == null && appContext.getSharedPreferences(SHAHAR, Context.MODE_PRIVATE).contains("points")) {
+            cur = SHAHAR
+            meta.edit().putString("current", cur).apply()
+        }
+        profile = cur
+        load(cur ?: SHAHAR)
+    }
+
+    @Synchronized
+    fun choose(p: String) {
+        profile = p
+        meta.edit().putString("current", p).apply()
+        load(p)
+        WordsWidget.updateAll(appContext)
+    }
+
+    private fun load(p: String) {
+        // Shahar keeps the original "shahar" file, so nothing of hers moves or changes.
+        prefs = appContext.getSharedPreferences(p, Context.MODE_PRIVATE)
         points = prefs.getInt("points", 0)
         streak = prefs.getInt("streak", 0)
         lastPracticeDay = prefs.getLong("lastDay", -1L)
-        examDay = prefs.getLong("examDay", examDay)
+        examDay = prefs.getLong("examDay", if (p == TOMER) NO_EXAM else SHAHAR_EXAM)
         reminderHour = prefs.getInt("remH", 17)
         reminderMinute = prefs.getInt("remM", 0)
+        val defaultWalls = listOf("cream", "cream", "cream", "sky", "cream")
         roomWalls[0] = prefs.getString("wall", "cream") ?: "cream"
         for (i in 1 until ROOMS.size) {
-            roomWalls[i] = prefs.getString("wall$i", roomWalls[i]) ?: roomWalls[i]
+            roomWalls[i] = prefs.getString("wall$i", defaultWalls[i]) ?: defaultWalls[i]
         }
         room = prefs.getInt("room", 0).coerceIn(0, ROOMS.size - 1)
 
+        levels.clear()
         val lv = JSONObject(prefs.getString("levels", "{}") ?: "{}")
         lv.keys().forEach { k -> levels[k] = lv.getInt(k) }
 
+        items.clear()
         val its = JSONObject(prefs.getString("items", "{}") ?: "{}")
         its.keys().forEach { k ->
             val o = its.getJSONObject(k)
@@ -134,10 +176,13 @@ object Store {
         for (i in 0 until wl.length()) walls.add(wl.getString(i))
         if (!walls.contains("cream")) walls.add("cream")
 
-        val bl = JSONArray(prefs.getString("buddies", "[\"boni\"]") ?: "[\"boni\"]")
+        // Tomer starts with no friend until he picks one.
+        starter = prefs.getString("starter", if (p == TOMER) "" else "boni") ?: ""
+        val defBuddies = if (starter.isEmpty()) "[]" else "[\"$starter\"]"
+        val bl = JSONArray(prefs.getString("buddies", defBuddies) ?: defBuddies)
         buddies.clear()
         for (i in 0 until bl.length()) buddies.add(bl.getString(i))
-        if (!buddies.contains("boni")) buddies.add(0, "boni")
+        if (starter.isNotEmpty() && !buddies.contains(starter)) buddies.add(0, starter)
     }
 
     fun save() {
@@ -164,6 +209,7 @@ object Store {
             .putString("items", its.toString())
             .putString("walls", JSONArray(walls.toList()).toString())
             .putString("buddies", JSONArray(buddies.toList()).toString())
+            .putString("starter", starter)
             .apply()
         WordsWidget.updateAll(appContext)
     }
@@ -175,9 +221,10 @@ object Store {
     fun practicedToday(): Boolean = lastPracticeDay == today()
 
     fun daysText(): String {
+        if (!hasExam) return g("בואי נלמד אנגלית! 🚀", "בוא נלמד אנגלית! 🚀")
         val d = daysUntilExam()
         return when {
-            d < 0 -> "המבחן מאחורייך! 🎉"
+            d < 0 -> g("המבחן מאחורייך! 🎉", "המבחן מאחוריך! 🎉")
             d == 0L -> "המבחן היום! בהצלחה 🍀"
             d == 1L -> "המבחן מחר! 💪"
             else -> "עוד $d ימים למבחן"
@@ -186,11 +233,11 @@ object Store {
 
     fun level(w: Word): Int = levels[w.en] ?: 0
 
-    fun knownCount(): Int = WORDS.count { level(it) >= 3 }
+    fun knownCount(): Int = words.count { level(it) >= 3 }
 
     /** Picks words for a round. Words she doesn't know yet come up much more often. */
     fun pickWords(n: Int): List<Word> {
-        val pool = WORDS.toMutableList()
+        val pool = words.toMutableList()
         val out = mutableListOf<Word>()
         repeat(minOf(n, pool.size)) {
             val weights = pool.map { val l = 6 - level(it); (l * l).toDouble() }
@@ -245,9 +292,26 @@ object Store {
         return true
     }
 
+    val needsStarter: Boolean get() = starter.isEmpty()
+
+    fun pickStarter(b: Buddy) {
+        starter = b.id
+        buddies.clear()
+        buddies.add(b.id)
+        save()
+    }
+
+    /** Boni is free only as a first friend; for a kid who started with someone else she costs like the cheapest friend. */
+    fun priceOf(b: Buddy): Int = when {
+        b.id == starter -> 0
+        b.price == 0 -> BUDDIES.filter { it.price > 0 }.minOf { it.price }
+        else -> b.price
+    }
+
     fun buyBuddy(b: Buddy): Boolean {
-        if (buddies.contains(b.id) || points < b.price) return false
-        points -= b.price
+        val price = priceOf(b)
+        if (buddies.contains(b.id) || points < price) return false
+        points -= price
         buddies.add(b.id)
         save()
         return true
@@ -274,8 +338,8 @@ object Store {
         save()
     }
 
-    fun setExam(date: LocalDate) {
-        examDay = date.toEpochDay()
+    fun setExam(date: LocalDate?) {
+        examDay = date?.toEpochDay() ?: NO_EXAM
         save()
     }
 

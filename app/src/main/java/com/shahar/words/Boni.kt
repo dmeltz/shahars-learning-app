@@ -30,7 +30,7 @@ import androidx.compose.ui.unit.sp
 
 enum class BoniMood { HAPPY, CHEER, SLEEPY }
 
-/** Shahar's buddies. Boni is free; the others are bought in the shop. */
+/** The buddies. Each kid gets one free first friend; the others are bought in the shop. */
 data class Buddy(
     val id: String,
     val he: String,
@@ -107,11 +107,11 @@ fun BoniSays(
 
 fun boniLines(): List<String> = listOf(
     "אני אוהבת את הבית שלנו! 💜",
-    "בואי נקנה עוד משהו לחדר!",
-    "את יודעת איך אומרים ספה באנגלית? sofa!",
-    "${Store.daysText()}. את תצליחי!",
+    Store.g("בואי נקנה עוד משהו לחדר!", "בוא נקנה עוד משהו לחדר!"),
+    if (Store.isTomer) "אתה יודע איך אומרים כלב באנגלית? dog!" else "את יודעת איך אומרים ספה באנגלית? sofa!",
+    if (Store.hasExam) "${Store.daysText()}. את תצליחי!" else "אתה אלוף! כל יום עוד מילה 💪",
     "כל תשובה נכונה = עוד נקודות לבית ⭐",
     "flower = פרח 🌸",
-    "הופ הופ! בואי נתאמן ביחד!",
-    "candy = ממתק. יאמי!",
+    Store.g("הופ הופ! בואי נתאמן ביחד!", "הופ הופ! בוא נתאמן ביחד!"),
+    if (Store.isTomer) "ice cream = גלידה. יאמי!" else "candy = ממתק. יאמי!",
 )

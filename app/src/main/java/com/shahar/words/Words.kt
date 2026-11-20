@@ -1,6 +1,6 @@
 package com.shahar.words
 
-data class Word(val en: String, val he: String, val note: String = "")
+data class Word(val en: String, val he: String, val note: String = "", val emoji: String = "")
 
 // The word list from Shahar's test page.
 val WORDS = listOf(

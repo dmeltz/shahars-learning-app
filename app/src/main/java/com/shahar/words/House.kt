@@ -99,7 +99,7 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         }
         val buddyRooms = remember {
             mutableStateMapOf<String, Int>().apply {
-                ownedBuddies().forEach { put(it.id, if (it.id == "boni") Store.room else Random.nextInt(ROOMS.size)) }
+                ownedBuddies().forEach { put(it.id, if (it.id == Store.starter) Store.room else Random.nextInt(ROOMS.size)) }
             }
         }
         fun roomOf(b: Buddy): Int = buddyRooms[b.id] ?: Store.room
@@ -139,18 +139,18 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         val hereItems = Store.items.values.count { it.inRoom && it.room == Store.room }
         if (hereItems == 0) {
             Text(
-                "החדר הזה עדיין ריק. אספי נקודות בתרגול ותקני חפצים בחנות, או החזירי חפצים מהמחסן!",
+                Store.g("החדר הזה עדיין ריק. אספי נקודות בתרגול ותקני חפצים בחנות, או החזירי חפצים מהמחסן!", "החדר הזה עדיין ריק. אסוף נקודות בתרגול ותקנה חפצים בחנות, או תחזיר חפצים מהמחסן!"),
                 fontSize = 17.sp, color = Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
             )
         } else {
             Text(
-                "גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על בוני כדי לשמוע מה היא אומרת.",
+                Store.g("גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על בוני כדי לשמוע מה היא אומרת.", "גרור חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחץ על החברים שלך כדי לשמוע מה הם אומרים."),
                 fontSize = 15.sp, color = Ink,
             )
         }
         val stored = SHOP.filter { Store.items[it.id]?.inRoom == false }
         if (stored.isNotEmpty()) {
-            Text("📦 המחסן (לחצי כדי להחזיר לחדר):", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
+            Text(Store.g("📦 המחסן (לחצי כדי להחזיר לחדר):", "📦 המחסן (לחץ כדי להחזיר לחדר):"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
             Row(
                 Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -357,15 +357,15 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
             modifier = Modifier.weight(1f),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("חברים לבוני 🐰", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("חברים ל" + (BUDDIES.firstOrNull { it.id == Store.starter }?.he ?: "בוני") + " 🐰", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
             }
-            items(BUDDIES.filter { it.price > 0 }) { b ->
+            items(BUDDIES.filter { it.id != Store.starter }) { b ->
                 val owned = Store.buddies.contains(b.id)
-                ShopCard("", b.he, b.about, b.price, owned, image = b.happy) {
+                ShopCard("", b.he, b.about, Store.priceOf(b), owned, image = b.happy) {
                     if (Store.buyBuddy(b)) {
-                        Toast.makeText(ctx, "${b.he} עברה לגור איתך בבית! 🎉", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, "${b.he} עכשיו גר/ה איתך בבית! 🎉", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, Store.g("עוד קצת נקודות ותוכלי לקנות 💪", "עוד קצת נקודות ותוכל לקנות 💪"), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -380,7 +380,7 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                         if (Store.buy(item)) {
                             Toast.makeText(ctx, "קנית ${item.he}! מחכה לך ב$roomName 🏠", Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(ctx, Store.g("עוד קצת נקודות ותוכלי לקנות 💪", "עוד קצת נקודות ותוכל לקנות 💪"), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -395,7 +395,7 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                     if (Store.buyWall(w)) {
                         Toast.makeText(ctx, "הקיר נצבע ב${w.he}! 🎨", Toast.LENGTH_SHORT).show()
                     } else {
-                        Toast.makeText(ctx, "עוד קצת נקודות ותוכלי לקנות 💪", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(ctx, Store.g("עוד קצת נקודות ותוכלי לקנות 💪", "עוד קצת נקודות ותוכל לקנות 💪"), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -483,7 +483,7 @@ fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int) {
     ) {
         Boni(mood, size, bounce = !asleep, buddy = buddy)
     }
-    val line = talking ?: if (asleep && index == 0) "זזז... כולם ישנים. לחצי על מישהו כדי להעיר" else null
+    val line = talking ?: if (asleep && index == 0) Store.g("זזז... כולם ישנים. לחצי על מישהו כדי להעיר", "זזז... כולם ישנים. לחץ על מישהו כדי להעיר") else null
     if (line != null) {
         Text(
             line,
