@@ -459,7 +459,7 @@ fun GiftedSettings() {
     if (asking) {
         ParentGate(onDismiss = { asking = false }) {
             asking = false
-            Store.setEnglishPaused(!Store.englishPaused)
+            Store.changeEnglishPause(!Store.englishPaused)
         }
     }
 }

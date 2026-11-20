@@ -364,7 +364,7 @@ object Store {
         save()
     }
 
-    fun setEnglishPaused(paused: Boolean) {
+    fun changeEnglishPause(paused: Boolean) {
         englishPaused = paused
         save()
     }
