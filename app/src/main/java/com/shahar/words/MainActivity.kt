@@ -82,7 +82,6 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Store.init(this)
         Speaker.init(this)
-        HeSpeaker.init(this)
         Reminder.schedule(this)
         WordsWidget.updateAll(this)
         startPractice = intent?.getBooleanExtra(EXTRA_PRACTICE, false) == true
@@ -101,10 +100,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing) {
-            Speaker.shutdown()
-            HeSpeaker.shutdown()
-        }
+        if (isFinishing) Speaker.shutdown()
         super.onDestroy()
     }
 

@@ -280,6 +280,14 @@ object Store {
         save()
     }
 
+    /** Prep answers: [delta] is the points won (or, when below zero, lost). Points never go below zero. */
+    fun recordPrep(key: String, correct: Boolean, delta: Int) {
+        val l = levels[key] ?: 0
+        levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
+        points = maxOf(0, points + delta)
+        save()
+    }
+
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {
         val t = today()

@@ -1,7 +1,5 @@
 package com.shahar.words
 
-import android.content.Context
-import android.speech.tts.TextToSpeech
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -48,39 +46,7 @@ import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import java.util.Locale
 import kotlin.random.Random
-
-// ---------------- Hebrew read-aloud (only if the tablet has a Hebrew voice) ----------------
-
-object HeSpeaker {
-    private var tts: TextToSpeech? = null
-    var ready by mutableStateOf(false)
-        private set
-
-    fun init(ctx: Context) {
-        if (tts != null) return
-        tts = TextToSpeech(ctx.applicationContext) { status ->
-            if (status == TextToSpeech.SUCCESS) {
-                val r = tts?.setLanguage(Locale("he", "IL")) ?: TextToSpeech.LANG_NOT_SUPPORTED
-                if (r != TextToSpeech.LANG_MISSING_DATA && r != TextToSpeech.LANG_NOT_SUPPORTED) {
-                    tts?.setSpeechRate(0.9f)
-                    ready = true
-                }
-            }
-        }
-    }
-
-    fun speak(text: String) {
-        if (ready) tts?.speak(text.replace("_____", "משהו"), TextToSpeech.QUEUE_FLUSH, null, "he")
-    }
-
-    fun shutdown() {
-        tts?.shutdown()
-        tts = null
-        ready = false
-    }
-}
 
 /** Keeps "30 + 11 = 41" in the right order inside Hebrew sentences (RTL would otherwise flip it). */
 private val MATH_RUN = Regex("[0-9❓🟦🔺(][0-9 +−×=❓🟦🔺()]*[0-9❓🟦🔺)]|[0-9]")
@@ -91,7 +57,7 @@ fun isolateMath(s: String): String = MATH_RUN.replace(s) { "⁦${it.value}⁩" }
 
 const val BLANK = "_____"
 
-fun heKey(w: HeWord) = "he:${w.word}"
+fun heKey(w: HeWord) = "he:${w.id}"
 fun heLevel(w: HeWord) = Store.levels[heKey(w)] ?: 0
 fun heKnown() = HE_WORDS.count { heLevel(it) >= 3 }
 
@@ -118,26 +84,30 @@ sealed class PrepItem {
     data class Story(val p: WordProblem) : PrepItem()
 }
 
-private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> =
-    HE_WORDS.filter { it != w && (!samePos || it.pos == w.pos) }.shuffled()
+/** Other words for wrong options: the same kind of word when there are enough of them. */
+private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> {
+    val same = HE_WORDS.filter { it != w && it.pos == w.pos }.shuffled()
+    val rest = HE_WORDS.filter { it != w && it.pos != w.pos }.shuffled()
+    return if (samePos && same.size >= 3) same else same + rest
+}
 
 fun meaningQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
     return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", w.sentence, opts, idx,
-        "${w.word} = ${w.meaning}", mark = w.word, say = w.sentence)
+        "${w.word} = ${w.meaning}", mark = w.form)
 }
 
 fun clozeQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.word, others(w).map { it.word })
-    return ChoiceQ(heKey(w), "איזו מילה מתאימה למשפט?", w.sentence.replace(w.word, BLANK), opts, idx,
-        "${w.sentence}\n${w.word} = ${w.meaning}", say = w.sentence)
+    return ChoiceQ(heKey(w), "איזו מילה מתאימה למשפט?", w.sentence.replace(w.form, BLANK), opts, idx,
+        "${w.sentence}\n${w.word} = ${w.meaning}")
 }
 
 fun synonymQ(w: HeWord): ChoiceQ {
     val wrong = (others(w).map { it.syn } + others(w, false).map { it.syn }).filter { it.isNotEmpty() && it != w.syn }
     val (opts, idx) = shuffleChoice(w.syn, wrong)
     return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", w.sentence, opts, idx,
-        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.word, say = w.sentence)
+        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form)
 }
 
 fun oppositeQ(w: HeWord): ChoiceQ {
@@ -145,13 +115,36 @@ fun oppositeQ(w: HeWord): ChoiceQ {
     val wrong = listOf(w.syn).filter { it.isNotEmpty() } + others(w).map { it.opp }.filter { it.isNotEmpty() && it != w.opp } + others(w).map { it.word }
     val (opts, idx) = shuffleChoice(w.opp, wrong)
     return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", w.sentence, opts, idx,
-        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.word, say = w.sentence)
+        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form)
+}
+
+/**
+ * Which sentence uses the word right? The sentences come in turn from [USAGE], so he doesn't see
+ * the same ones again until he has gone through the rest. The turn is saved with his levels.
+ */
+fun usageQ(w: HeWord): ChoiceQ? {
+    val (right, wrong) = USAGE[w.id] ?: return null
+    val turnKey = "us:${w.id}"
+    val c = Store.levels[turnKey] ?: 0
+    Store.levels[turnKey] = c + 1
+    val good = right[c % right.size]
+    val bad = (0 until 3).map { wrong[(c * 3 + it) % wrong.size] }
+    val (opts, idx) = shuffleChoice(good, bad)
+    return ChoiceQ(heKey(w), "בְּאֵיזֶה מִשְׁפָּט הַמִּלָּה מַתְאִימָה?", w.word, opts, idx,
+        "המשפט הנכון:\n$good\n${w.word} = ${w.meaning}", mark = w.word)
+}
+
+/** A flashcard is always followed by a question on using the word in a sentence. */
+fun vocabItems(w: HeWord): List<PrepItem> {
+    val item = vocabItem(w)
+    val usage = usageQ(w)
+    return if (item is PrepItem.Flash && usage != null) listOf(item, PrepItem.Choice(usage)) else listOf(item)
 }
 
 fun vocabItem(w: HeWord): PrepItem {
     val lvl = heLevel(w)
     if (lvl == 0) return PrepItem.Flash(w)
-    val kinds = mutableListOf("meaning", "cloze")
+    val kinds = mutableListOf("meaning", "cloze", "usage")
     if (lvl >= 2 && w.syn.isNotEmpty()) kinds += "syn"
     if (lvl >= 2 && w.opp.isNotEmpty()) kinds += "opp"
     if (lvl <= 1) kinds += "flash"
@@ -159,6 +152,7 @@ fun vocabItem(w: HeWord): PrepItem {
         "flash" -> PrepItem.Flash(w)
         "meaning" -> PrepItem.Choice(meaningQ(w))
         "cloze" -> PrepItem.Choice(clozeQ(w))
+        "usage" -> PrepItem.Choice(usageQ(w) ?: meaningQ(w))
         "syn" -> PrepItem.Choice(synonymQ(w))
         else -> PrepItem.Choice(oppositeQ(w))
     }
@@ -184,13 +178,14 @@ enum class PrepArea(val title: String, val emoji: String) {
 }
 
 fun buildPrepRound(area: PrepArea): List<PrepItem> = when (area) {
-    PrepArea.VOCAB -> pickHeWords(8).map { vocabItem(it) }
+    PrepArea.VOCAB -> pickHeWords(8).flatMap { vocabItems(it) }
     PrepArea.MATH -> mathRound(10).map { PrepItem.Choice(it) }
     PrepArea.STORY -> wordProblems(5).map { PrepItem.Story(it) }
     PrepArea.READING -> readingRound()
-    PrepArea.MIX -> (pickHeWords(3).map { vocabItem(it) } +
-        mathRound(4).map { PrepItem.Choice(it) } +
-        wordProblems(2).map { PrepItem.Story(it) }).shuffled()
+    // Shuffled as blocks, so a flashcard keeps its sentence question right after it.
+    PrepArea.MIX -> (pickHeWords(3).map { vocabItems(it) } +
+        mathRound(4).map { listOf(PrepItem.Choice(it)) } +
+        wordProblems(2).map { listOf(PrepItem.Story(it)) }).shuffled().flatten()
 }
 
 // ---------------- Screens ----------------
@@ -277,15 +272,15 @@ fun PrepRoundScreen(area: PrepArea, onExit: () -> Unit, onHouse: () -> Unit) {
                     }
                     when (item) {
                         is PrepItem.Choice -> ChoiceView(item.q) { ok, pts ->
-                            Store.recordPhonics(item.q.key, ok, pts)
+                            Store.recordPrep(item.q.key, ok, pts)
                             done(ok, pts)
                         }
                         is PrepItem.Flash -> HeFlashCard(item.w) { ok, pts ->
-                            Store.recordPhonics(heKey(item.w), ok, pts)
+                            Store.recordPrep(heKey(item.w), ok, 0)
                             done(ok, pts)
                         }
                         is PrepItem.Story -> StoryView(item.p) { ok, pts ->
-                            Store.recordPhonics("wp:${item.p.id}", ok, pts)
+                            Store.recordPrep("wp:${item.p.id}", ok, pts)
                             done(ok, pts)
                         }
                     }
@@ -319,13 +314,6 @@ private fun marked(text: String, mark: String): AnnotatedString = buildAnnotated
 }
 
 @Composable
-fun SayButton(text: String) {
-    if (HeSpeaker.ready && text.isNotEmpty()) {
-        TextButton(onClick = { HeSpeaker.speak(text) }) { Text("🔊 הקראה", fontSize = 16.sp) }
-    }
-}
-
-@Composable
 fun BodyCard(q: ChoiceQ) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color.White)
@@ -340,7 +328,6 @@ fun BodyCard(q: ChoiceQ) {
             }
         } else {
             Text(marked(q.body, q.mark), fontSize = 24.sp, color = Ink, textAlign = TextAlign.Center, lineHeight = 34.sp)
-            SayButton(q.say)
         }
     }
 }
@@ -361,7 +348,6 @@ fun PassageView(p: Passage) {
             p.paragraphs.forEachIndexed { i, para ->
                 Text("${i + 1}.  $para", fontSize = 18.sp, color = Ink, lineHeight = 28.sp)
             }
-            SayButton(p.paragraphs.joinToString(" "))
         }
     }
 }
@@ -401,21 +387,50 @@ private fun OptionCell(text: String, i: Int, answer: Int, chosen: Int, ltr: Bool
         )
     }
 
+/** A wrong answer costs a quarter of what a right one earns (rounded). */
+fun penalty(pts: Int) = (pts + 2) / 4
+
 @Composable
 fun PrepFeedback(ok: Boolean, pts: Int, explain: String) {
     val praise = remember(ok) { listOf("מעולה!", "כל הכבוד!", "אלוף!", "יש!", "מדהים!", "בדיוק!").random() }
     BoniSays(
-        if (ok) "$praise +$pts ⭐" else "לא נורא! בוא נראה איך פותרים:",
+        if (ok) "$praise +$pts ⭐" else "לא נורא! (−${penalty(pts)} ⭐) בוא נראה איך פותרים:",
         if (ok) BoniMood.CHEER else BoniMood.HAPPY,
         if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00),
         size = 60.dp, fontSize = 18,
     )
-    if (explain.isNotEmpty()) {
-        Text(
-            "💡 " + isolateMath(explain), fontSize = 17.sp, color = Ink, lineHeight = 26.sp,
-            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF6FF)).padding(12.dp),
-        )
+    if (explain.isNotEmpty()) ExplainBox(explain)
+}
+
+private val HEBREW = Regex("[\u0590-\u05FF]")
+
+/**
+ * The explanation, one line per row. A line with no Hebrew in it is an exercise: it gets its own
+ * row, written left to right, so the order of the numbers never gets flipped by the Hebrew around it.
+ */
+@Composable
+fun ExplainBox(explain: String) {
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(Color(0xFFEAF6FF)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp),
+    ) {
+        explain.split("\n").filter { it.isNotBlank() }.forEachIndexed { i, line ->
+            if (HEBREW.containsMatchIn(line)) {
+                Text((if (i == 0) "💡 " else "") + isolateMath(line), fontSize = 17.sp, color = Ink, lineHeight = 26.sp)
+            } else {
+                MathLine(line, 24)
+            }
+        }
     }
+}
+
+/** An exercise on its own row, left to right. */
+@Composable
+fun MathLine(text: String, size: Int) {
+    Text(
+        text, fontSize = size.sp, fontWeight = FontWeight.Bold, color = Ink, textAlign = TextAlign.Center,
+        style = TextStyle(textDirection = TextDirection.Ltr), modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
@@ -430,7 +445,7 @@ fun ChoiceView(q: ChoiceQ, onDone: (Boolean, Int) -> Unit) {
             val ok = chosen == q.answer
             // When he's right he sees the explanation only for math, where the way matters.
             PrepFeedback(ok, q.pts, if (ok && !q.ltr) "" else q.explain)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) q.pts else 0) }
+            BigButton("הבא", Purple) { onDone(ok, if (ok) q.pts else -penalty(q.pts)) }
         }
     }
 }
@@ -447,7 +462,8 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
         ) {
             Text(w.word, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Ink)
             if (w.fromSample) Text("⭐ מילה מהמבחן לדוגמה", fontSize = 14.sp, color = Orange)
-            SayButton(w.word)
+            Spacer(Modifier.height(12.dp))
+            Text(marked(w.sentence, w.form), fontSize = 22.sp, color = Ink, lineHeight = 32.sp, textAlign = TextAlign.Center)
         }
         if (!flipped) {
             BigButton("הפוך את הכרטיס 🔄", Purple) { flipped = true }
@@ -456,15 +472,10 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFFF1ECFF)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("הפירוש: ${w.meaning}", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Purple)
-                Text("במשפט:", fontSize = 15.sp, color = Ink)
-                Text(marked(w.sentence, w.word), fontSize = 21.sp, color = Ink, lineHeight = 30.sp)
-                if (w.syn.isNotEmpty()) Text("מילה דומה: ${w.syn}", fontSize = 17.sp, color = Ink)
-                if (w.opp.isNotEmpty()) Text("ההפך: ${w.opp}", fontSize = 17.sp, color = Ink)
-                SayButton(w.sentence)
+                Text("הפירוש: ${w.meaning}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Purple, lineHeight = 32.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
+                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 0) }
                 BigButton("עוד לא", Orange, Modifier.weight(1f)) { onDone(false, 0) }
             }
         }
@@ -486,44 +497,35 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                 .border(3.dp, Orange, RoundedCornerShape(24.dp)).padding(18.dp),
         ) {
             Text(storyText(p.story), fontSize = 22.sp, color = Ink, lineHeight = 32.sp)
-            SayButton(p.story)
         }
         Text(
-            listOf("שלב 1 מתוך 3: מבינים את הבעיה", "שלב 2 מתוך 3: הופכים לתרגיל", "שלב 3 מתוך 3: פותרים").getOrElse(step) { "" },
+            listOf("שלב 1 מתוך 2: הופכים לתרגיל", "שלב 2 מתוך 2: פותרים").getOrElse(step) { "" },
             fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Orange,
         )
         when (step) {
             0 -> {
-                Prompt("איזו פעולה צריך כדי לפתור?")
-                OptionGrid(OPS, p.op, chosen, false) { chosen = it }
+                Prompt("אֵיזֶה תַּרְגִּיל מַתְאִים לַבְּעָיָה?")
+                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
                 if (chosen >= 0) {
-                    val ok = chosen == p.op
-                    PrepFeedback(ok, 5, if (ok) "" else opHint(p.op))
+                    val ok = chosen == exChoice.second
+                    PrepFeedback(ok, 10, if (ok) "" else opHint(p.op) + "\nהתרגיל הנכון:\n${p.exercise}")
                     BigButton("לשלב הבא", Purple) {
-                        if (ok) pts += 5
+                        pts += if (ok) 10 else -penalty(10)
                         step = 1
                     }
                 }
             }
-            1 -> {
-                Prompt("איזה תרגיל מתאים לבעיה?")
-                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
-                if (chosen >= 0) {
-                    val ok = chosen == exChoice.second
-                    PrepFeedback(ok, 5, if (ok) "" else "התרגיל הנכון: ${p.exercise}")
-                    BigButton("לשלב הבא", Purple) {
-                        if (ok) pts += 5
-                        step = 2
-                    }
-                }
-            }
             else -> {
-                Prompt("עכשיו פותרים: ${p.exercise} = ?")
+                Prompt("עַכְשָׁיו פּוֹתְרִים אֶת הַתַּרְגִּיל:")
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White)
+                        .border(3.dp, Blue, RoundedCornerShape(20.dp)).padding(vertical = 16.dp),
+                ) { MathLine("${p.exercise} = ?", 30) }
                 OptionGrid(ansChoice.first, ansChoice.second, chosen, true) { chosen = it }
                 if (chosen >= 0) {
                     val ok = chosen == ansChoice.second
-                    PrepFeedback(ok, 10, p.why + " התשובה: ${p.answer} ${p.unit}.")
-                    BigButton("הבא", Purple) { onDone(ok, pts + if (ok) 10 else 0) }
+                    PrepFeedback(ok, 10, p.why + "\nהתשובה: ${p.answer} ${p.unit}")
+                    BigButton("הבא", Purple) { onDone(ok, pts + if (ok) 10 else -penalty(10)) }
                 }
             }
         }
@@ -559,7 +561,6 @@ fun PrepWordsScreen(onBack: () -> Unit) {
                 val lvl = heLevel(w)
                 Column(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
-                        .clickable { HeSpeaker.speak(w.sentence) }
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -568,7 +569,7 @@ fun PrepWordsScreen(onBack: () -> Unit) {
                     }
                     Text(w.meaning, fontSize = 16.sp, color = Ink)
                     Spacer(Modifier.width(4.dp))
-                    Text(marked(w.sentence, w.word), fontSize = 15.sp, color = Color(0xFF6B5A80))
+                    Text(marked(w.sentence, w.form), fontSize = 15.sp, color = Color(0xFF6B5A80))
                 }
             }
         }
