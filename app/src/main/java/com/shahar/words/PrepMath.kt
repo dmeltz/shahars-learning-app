@@ -18,7 +18,6 @@ data class ChoiceQ(
     val ltr: Boolean = false,
     val mark: String = "",
     val passage: Passage? = null,
-    val say: String = "",
 )
 
 private fun rnd(from: Int, to: Int) = Random.nextInt(from, to + 1)
@@ -181,7 +180,7 @@ const val SUB = 1
 const val MUL = 2
 const val TWO = 3
 
-/** A word problem solved in three steps: which operation, which exercise, and the answer. */
+/** A word problem solved in two steps: which exercise fits, then the answer. */
 data class WordProblem(
     val id: String,
     val story: String,
@@ -193,115 +192,115 @@ data class WordProblem(
     val why: String,
 )
 
-private val BOYS = listOf("יואב", "עומר", "איתי", "נועם", "אורי", "גיל", "רון", "דניאל", "תומר", "אדם")
-private val GIRLS = listOf("נועה", "מאיה", "תמר", "יעל", "שירה", "דנה", "ליה", "רוני")
+private val BOYS = listOf("יוֹאָב", "עוֹמֶר", "אִיתַי", "נוֹעַם", "אוּרִי", "גִּיל", "רוֹן", "דָּנִיֵּאל", "תּוֹמֶר", "אָדָם")
+private val GIRLS = listOf("נוֹעָה", "מַאיָה", "תָּמָר", "יָעֵל", "שִׁירָה", "דָּנָה", "לִיָּה", "רוֹנִי")
 
 private fun two(list: List<String>): Pair<String, String> = list.shuffled().let { it[0] to it[1] }
 
 private val TEMPLATES: List<() -> WordProblem> = listOf(
     {
         val a = rnd(10, 18); val b = rnd(10, 18).let { if (it == a) it + 1 else it }
-        WordProblem("class", "בכיתה של ${BOYS.random()} יש $a בנים ו-$b בנות. כמה ילדים יש בכיתה?", ADD,
+        WordProblem("class", "בַּכִּתָּה שֶׁל ${BOYS.random()} יֵשׁ $a בָּנִים וְ-$b בָּנוֹת. כַּמָּה יְלָדִים יֵשׁ בַּכִּתָּה?", ADD,
             "$a + $b", listOf("${maxOf(a, b)} − ${minOf(a, b)}", "$a + $a", "$b × 2"), a + b, "ילדים",
             "בנים ובנות ביחד הם כל הילדים, ולכן מחברים:\n$a + $b = ${a + b}")
     },
     {
         val (x, y) = two(BOYS); val a = rnd(30, 80); val b = rnd(5, 25)
-        WordProblem("stickers", "ל$x היו $a מדבקות. הוא נתן ל$y $b מדבקות. כמה מדבקות נשארו ל$x?", SUB,
+        WordProblem("stickers", "לְ$x הָיוּ $a מַדְבֵּקוֹת. הוּא נָתַן לְ$y $b מַדְבֵּקוֹת. כַּמָּה מַדְבֵּקוֹת נִשְׁאֲרוּ לְ$x?", SUB,
             "$a − $b", listOf("$a + $b", "$b − 5", "$b − $a"), a - b, "מדבקות",
             "$x נתן מדבקות, אז נשארו לו פחות. מחסרים:\n$a − $b = ${a - b}")
     },
     {
         val (x, y) = two(BOYS); val a = rnd(30, 60); val b = a - rnd(5, 20)
-        WordProblem("compare", "ל$x יש $a גולות, ול$y יש $b גולות. בכמה גולות יש ל$x יותר מאשר ל$y?", SUB,
+        WordProblem("compare", "לְ$x יֵשׁ $a גֻּלּוֹת, וּלְ$y יֵשׁ $b גֻּלּוֹת. בְּכַמָּה גֻּלּוֹת יֵשׁ לְ$x יוֹתֵר מֵאֲשֶׁר לְ$y?", SUB,
             "$a − $b", listOf("$a + $b", "$b + 10", "$b − $a"), a - b, "גולות",
             "\"בכמה יותר\" זו שאלה של הפרש, ולכן מחסרים:\n$a − $b = ${a - b}\nשימו לב: המילה \"יותר\" לא תמיד אומרת לחבר!")
     },
     {
         val a = listOf(3, 4, 5, 10).random(); val k = rnd(2, 6).let { if (it == a) it + 1 else it }
-        WordProblem("boxes", "בכל קופסה יש $a עפרונות. ל${BOYS.random()} יש $k קופסאות. כמה עפרונות יש לו בסך הכול?", MUL,
+        WordProblem("boxes", "בְּכָל קֻפְסָה יֵשׁ $a עֶפְרוֹנוֹת. לְ${BOYS.random()} יֵשׁ $k קֻפְסָאוֹת. כַּמָּה עֶפְרוֹנוֹת יֵשׁ לוֹ בְּסַךְ הַכֹּל?", MUL,
             "$k × $a", listOf("$k + $a", "${maxOf(a, k)} − ${minOf(a, k)}", "$a + 10"), a * k, "עפרונות",
             "יש $k קבוצות שוות של $a, ולכן כופלים:\n$k × $a = ${a * k}")
     },
     {
         val w = listOf(100, 200, 300).random(); val c = listOf(4, 5, 6, 8, 10).random(); val k = listOf(2, 3).random()
-        WordProblem("cookies", "בחבילה ששוקלת $w גרם יש $c עוגיות. כמה עוגיות יש בחבילה ששוקלת ${w * k} גרם?", MUL,
+        WordProblem("cookies", "בַּחֲבִילָה שֶׁשּׁוֹקֶלֶת $w גְּרָם יֵשׁ $c עוּגִיּוֹת. כַּמָּה עוּגִיּוֹת יֵשׁ בַּחֲבִילָה שֶׁשּׁוֹקֶלֶת ${w * k} גְּרָם?", MUL,
             "$c × $k", listOf("$c + $k", "$c + $w", "${w * k} − $c"), c * k, "עוגיות",
             "${w * k} גרם זה פי $k מ-$w גרם, ולכן יש פי $k עוגיות:\n$c × $k = ${c * k}")
     },
     {
-        val (first, second) = listOf("כיכר לחם" to "יוגורטים", "מחברת" to "עפרונות", "שקית במבה" to "בקבוקי מים").random()
+        val (first, second) = listOf("כִּכַּר לֶחֶם" to "יוֹגוּרְטִים", "מַחְבֶּרֶת" to "עֶפְרוֹנוֹת", "שַׂקִּית בַּמְבָּה" to "בַּקְבּוּקֵי מַיִם").random()
         val a = rnd(3, 9); val k = rnd(2, 3); val b = rnd(2, 5)
         val cost = a + k * b
         val pay = if (cost <= 20) 20 else 50
-        WordProblem("change", "${BOYS.random()} קנה $first ב-$a ₪ ו-$k $second במחיר $b ₪ כל אחד. הוא שילם בשטר של $pay ₪. כמה עודף הוא קיבל?", TWO,
+        WordProblem("change", "${BOYS.random()} קָנָה $first בְּ-$a ₪ וְ-$k $second בִּמְחִיר $b ₪ כָּל אֶחָד. הוּא שִׁלֵּם בִּשְׁטָר שֶׁל $pay ₪. כַּמָּה עוֹדֶף הוּא קִבֵּל?", TWO,
             "$pay − ($a + $k × $b)", listOf("$pay − ($a + $b)", "$a + $k × $b", "$pay − $a − $k"), pay - cost, "₪",
             "שלב 1: כמה עלה הכול?\n$k × $b = ${k * b}\n${k * b} + $a = $cost\nשלב 2: כמה עודף?\n$pay − $cost = ${pay - cost}")
     },
     {
         val (x, y) = two(BOYS); val b = rnd(5, 20); val c = b + rnd(10, 50)
-        WordProblem("start", "ל$x היו כמה קלפים. $y נתן לו עוד $b קלפים, ועכשיו יש ל$x $c קלפים. כמה קלפים היו ל$x בהתחלה?", SUB,
+        WordProblem("start", "לְ$x הָיוּ כַּמָּה קְלָפִים. $y נָתַן לוֹ עוֹד $b קְלָפִים, וְעַכְשָׁיו יֵשׁ לְ$x $c קְלָפִים. כַּמָּה קְלָפִים הָיוּ לְ$x בַּהַתְחָלָה?", SUB,
             "$c − $b", listOf("$c + $b", "$b + 10", "$b − $c"), c - b, "קלפים",
             "עכשיו יש $c, וזה כולל את ה-$b שקיבל. כדי לדעת כמה היו קודם, מורידים אותם:\n$c − $b = ${c - b}\nשימו לב: \"קיבל\" אבל מחסרים!")
     },
     {
-        val (many, one, legs) = listOf(Triple("תרנגולות", "תרנגולת", 2), Triple("פרות", "פרה", 4), Triple("ברווזים", "ברווז", 2)).random()
+        val (many, one, legs) = listOf(Triple("תַּרְנְגוֹלוֹת", "תַּרְנְגוֹלֶת", 2), Triple("פָּרוֹת", "פָּרָה", 4), Triple("בַּרְוָזִים", "בַּרְוָז", 2)).random()
         val k = rnd(3, 9).let { if (it == legs) it + 1 else it }
-        WordProblem("legs", "בחווה יש $k $many. לכל $one יש $legs רגליים. כמה רגליים יש לכל ה$many ביחד?", MUL,
+        WordProblem("legs", "בַּחַוָּה יֵשׁ $k $many. לְכָל $one יֵשׁ $legs רַגְלַיִם. כַּמָּה רַגְלַיִם יֵשׁ לְכָל הַ$many בְּיַחַד?", MUL,
             "$k × $legs", listOf("$k + $legs", "$k × $k", "$k + $k + $k"), k * legs, "רגליים",
             "יש $k $many ולכל אחת $legs רגליים, אז כופלים:\n$k × $legs = ${k * legs}")
     },
     {
         val a = rnd(20, 40); val b = rnd(3, 12); val c = rnd(2, 10)
-        WordProblem("bus", "באוטובוס היו $a נוסעים. בתחנה ירדו $b נוסעים ועלו $c נוסעים. כמה נוסעים יש עכשיו באוטובוס?", TWO,
+        WordProblem("bus", "בָּאוֹטוֹבּוּס הָיוּ $a נוֹסְעִים. בַּתַּחֲנָה יָרְדוּ $b נוֹסְעִים וְעָלוּ $c נוֹסְעִים. כַּמָּה נוֹסְעִים יֵשׁ עַכְשָׁיו בָּאוֹטוֹבּוּס?", TWO,
             "$a − $b + $c", listOf("$a + $b + $c", "$a + $b − $c", "$a − $b − $c"), a - b + c, "נוסעים",
             "שלב 1: ירדו נוסעים, אז מחסרים:\n$a − $b = ${a - b}\nשלב 2: עלו נוסעים, אז מחברים:\n${a - b} + $c = ${a - b + c}")
     },
     {
         val x = BOYS.random(); val g = GIRLS.random(); val age = rnd(6, 9); val d = rnd(2, 6)
-        WordProblem("age", "$x בן $age. אחותו $g גדולה ממנו ב-$d שנים. בת כמה $g?", ADD,
+        WordProblem("age", "$x בֶּן $age. אֲחוֹתוֹ $g גְּדוֹלָה מִמֶּנּוּ בְּ-$d שָׁנִים. בַּת כַּמָּה $g?", ADD,
             "$age + $d", listOf("$age − $d", "$age × $d", "$age + 1"), age + d, "שנים",
             "$g גדולה יותר, אז מוסיפים:\n$age + $d = ${age + d}")
     },
     {
         val g = GIRLS.random(); val a = rnd(40, 100); val b = rnd(10, a - 10)
-        WordProblem("pages", "בספר יש $a עמודים. $g כבר קראה $b עמודים. כמה עמודים נשאר לה לקרוא?", SUB,
+        WordProblem("pages", "בַּסֵּפֶר יֵשׁ $a עַמּוּדִים. $g כְּבָר קָרְאָה $b עַמּוּדִים. כַּמָּה עַמּוּדִים נִשְׁאַר לָהּ לִקְרוֹא?", SUB,
             "$a − $b", listOf("$a + $b", "$b + 10", "$b − $a"), a - b, "עמודים",
             "מכל העמודים מורידים את מה שכבר קראה:\n$a − $b = ${a - b}")
     },
     {
         val a = rnd(2, 5)
-        WordProblem("week", "${BOYS.random()} קורא $a עמודים בכל יום. כמה עמודים הוא יקרא בשבוע שלם?", MUL,
+        WordProblem("week", "${BOYS.random()} קוֹרֵא $a עַמּוּדִים בְּכָל יוֹם. כַּמָּה עַמּוּדִים הוּא יִקְרָא בְּשָׁבוּעַ שָׁלֵם?", MUL,
             "$a × 7", listOf("$a + 7", "$a × 5", "7 − $a"), a * 7, "עמודים",
             "בשבוע יש 7 ימים, ובכל יום $a עמודים:\n$a × 7 = ${a * 7}\nצריך לזכור לבד כמה ימים יש בשבוע!")
     },
     {
         val g = GIRLS.random(); val k = rnd(2, 8)
-        WordProblem("coins", "ל$g יש $k מטבעות של 5 ₪ ועוד מטבע אחד של 2 ₪. כמה כסף יש ל$g?", TWO,
+        WordProblem("coins", "לְ$g יֵשׁ $k מַטְבְּעוֹת שֶׁל 5 ₪ וְעוֹד מַטְבֵּעַ אֶחָד שֶׁל 2 ₪. כַּמָּה כֶּסֶף יֵשׁ לְ$g?", TWO,
             "$k × 5 + 2", listOf("$k + 5 + 2", "$k × 2 + 5", "$k × 5"), k * 5 + 2, "₪",
             "שלב 1: כמה שווים המטבעות של 5?\n$k × 5 = ${k * 5}\nשלב 2: מוסיפים את המטבע של 2:\n${k * 5} + 2 = ${k * 5 + 2}")
     },
     {
         val b = rnd(2, 6); val c = rnd(2, 5)
-        WordProblem("wheels", "בחניה עומדים $b אופניים ו-$c מכוניות. לכל אופניים יש 2 גלגלים, ולכל מכונית יש 4 גלגלים. כמה גלגלים יש בחניה?", TWO,
+        WordProblem("wheels", "בַּחֲנָיָה עוֹמְדִים $b אוֹפַנַּיִם וְ-$c מְכוֹנִיּוֹת. לְכָל אוֹפַנַּיִם יֵשׁ 2 גַּלְגַּלִּים, וּלְכָל מְכוֹנִית יֵשׁ 4 גַּלְגַּלִּים. כַּמָּה גַּלְגַּלִּים יֵשׁ בַּחֲנָיָה?", TWO,
             "$b × 2 + $c × 4", listOf("$b + $c", "($b + $c) × 4", "$b × 4 + $c × 2"), b * 2 + c * 4, "גלגלים",
             "שלב 1: גלגלי האופניים וגלגלי המכוניות:\n$b × 2 = ${b * 2}\n$c × 4 = ${c * 4}\nשלב 2: ביחד:\n${b * 2} + ${c * 4} = ${b * 2 + c * 4}")
     },
     {
         val (x, y) = two(GIRLS); val a = rnd(15, 40); val d = rnd(5, 20)
-        WordProblem("more", "ל$x יש $a חרוזים. ל$y יש $d חרוזים יותר ממנה. כמה חרוזים יש ל$y?", ADD,
+        WordProblem("more", "לְ$x יֵשׁ $a חֲרוּזִים. לְ$y יֵשׁ $d חֲרוּזִים יוֹתֵר מִמֶּנָּה. כַּמָּה חֲרוּזִים יֵשׁ לְ$y?", ADD,
             "$a + $d", listOf("$a − $d", "$a × 2", "$d + 10"), a + d, "חרוזים",
             "ל$y יש יותר, אז מוסיפים:\n$a + $d = ${a + d}")
     },
     {
         val (x, y) = two(BOYS); val a = rnd(30, 90); val d = rnd(5, 25)
-        WordProblem("less", "ל$x יש $a ₪. ל$y יש $d ₪ פחות ממנו. כמה כסף יש ל$y?", SUB,
+        WordProblem("less", "לְ$x יֵשׁ $a ₪. לְ$y יֵשׁ $d ₪ פָּחוֹת מִמֶּנּוּ. כַּמָּה כֶּסֶף יֵשׁ לְ$y?", SUB,
             "$a − $d", listOf("$a + $d", "$d − 5", "$d − $a"), a - d, "₪",
             "ל$y יש פחות, אז מורידים:\n$a − $d = ${a - d}")
     },
     {
         val k = listOf(2, 3, 4, 5, 10).random(); val r = rnd(3, 9).let { if (it == k) it + 1 else it }
-        WordProblem("rows", "באולם יש $r שורות של כיסאות, ובכל שורה יש $k כיסאות. כמה כיסאות יש באולם?", MUL,
+        WordProblem("rows", "בָּאוּלָם יֵשׁ $r שׁוּרוֹת שֶׁל כִּסְאוֹת, וּבְכָל שׁוּרָה יֵשׁ $k כִּסְאוֹת. כַּמָּה כִּסְאוֹת יֵשׁ בָּאוּלָם?", MUL,
             "$r × $k", listOf("$r + $k", "$r + $r", "${maxOf(r, k)} − ${minOf(r, k)}"), r * k, "כיסאות",
             "יש $r שורות שוות של $k כיסאות:\n$r × $k = ${r * k}")
     },

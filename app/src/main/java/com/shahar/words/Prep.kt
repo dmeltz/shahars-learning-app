@@ -94,20 +94,20 @@ private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> {
 fun meaningQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
     return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", w.sentence, opts, idx,
-        "${w.word} = ${w.meaning}", mark = w.form, say = w.sentence)
+        "${w.word} = ${w.meaning}", mark = w.form)
 }
 
 fun clozeQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.word, others(w).map { it.word })
     return ChoiceQ(heKey(w), "איזו מילה מתאימה למשפט?", w.sentence.replace(w.form, BLANK), opts, idx,
-        "${w.sentence}\n${w.word} = ${w.meaning}", say = w.sentence)
+        "${w.sentence}\n${w.word} = ${w.meaning}")
 }
 
 fun synonymQ(w: HeWord): ChoiceQ {
     val wrong = (others(w).map { it.syn } + others(w, false).map { it.syn }).filter { it.isNotEmpty() && it != w.syn }
     val (opts, idx) = shuffleChoice(w.syn, wrong)
     return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", w.sentence, opts, idx,
-        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form, say = w.sentence)
+        "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form)
 }
 
 fun oppositeQ(w: HeWord): ChoiceQ {
@@ -115,7 +115,7 @@ fun oppositeQ(w: HeWord): ChoiceQ {
     val wrong = listOf(w.syn).filter { it.isNotEmpty() } + others(w).map { it.opp }.filter { it.isNotEmpty() && it != w.opp } + others(w).map { it.word }
     val (opts, idx) = shuffleChoice(w.opp, wrong)
     return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", w.sentence, opts, idx,
-        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form, say = w.sentence)
+        "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form)
 }
 
 fun vocabItem(w: HeWord): PrepItem {
@@ -471,36 +471,24 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
             Text(storyText(p.story), fontSize = 22.sp, color = Ink, lineHeight = 32.sp)
         }
         Text(
-            listOf("שלב 1 מתוך 3: מבינים את הבעיה", "שלב 2 מתוך 3: הופכים לתרגיל", "שלב 3 מתוך 3: פותרים").getOrElse(step) { "" },
+            listOf("שלב 1 מתוך 2: הופכים לתרגיל", "שלב 2 מתוך 2: פותרים").getOrElse(step) { "" },
             fontSize = 15.sp, fontWeight = FontWeight.Bold, color = Orange,
         )
         when (step) {
             0 -> {
-                Prompt("איזו פעולה צריך כדי לפתור?")
-                OptionGrid(OPS, p.op, chosen, false) { chosen = it }
+                Prompt("אֵיזֶה תַּרְגִּיל מַתְאִים לַבְּעָיָה?")
+                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
                 if (chosen >= 0) {
-                    val ok = chosen == p.op
-                    PrepFeedback(ok, 5, if (ok) "" else opHint(p.op))
+                    val ok = chosen == exChoice.second
+                    PrepFeedback(ok, 10, if (ok) "" else opHint(p.op) + "\nהתרגיל הנכון:\n${p.exercise}")
                     BigButton("לשלב הבא", Purple) {
-                        if (ok) pts += 5
+                        if (ok) pts += 10
                         step = 1
                     }
                 }
             }
-            1 -> {
-                Prompt("איזה תרגיל מתאים לבעיה?")
-                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
-                if (chosen >= 0) {
-                    val ok = chosen == exChoice.second
-                    PrepFeedback(ok, 5, if (ok) "" else "התרגיל הנכון:\n${p.exercise}")
-                    BigButton("לשלב הבא", Purple) {
-                        if (ok) pts += 5
-                        step = 2
-                    }
-                }
-            }
             else -> {
-                Prompt("עכשיו פותרים את התרגיל:")
+                Prompt("עַכְשָׁיו פּוֹתְרִים אֶת הַתַּרְגִּיל:")
                 Box(
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White)
                         .border(3.dp, Blue, RoundedCornerShape(20.dp)).padding(vertical = 16.dp),
