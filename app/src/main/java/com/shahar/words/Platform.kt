@@ -91,7 +91,10 @@ object Reminder {
         val n = NotificationCompat.Builder(ctx, CHANNEL)
             .setSmallIcon(R.drawable.ic_star)
             .setContentTitle(Store.daysText())
-            .setContentText(Store.g("בואי לתרגל כמה מילים ולאסוף נקודות ⭐", "בוא לתרגל כמה מילים ולאסוף נקודות ⭐"))
+            .setContentText(
+                if (Store.isTomer && Store.englishPaused) "בוא נתאמן למבחן ונאסוף נקודות ⭐"
+                else Store.g("בואי לתרגל כמה מילים ולאסוף נקודות ⭐", "בוא לתרגל כמה מילים ולאסוף נקודות ⭐")
+            )
             .setContentIntent(practiceIntent(ctx))
             .setAutoCancel(true)
             .build()

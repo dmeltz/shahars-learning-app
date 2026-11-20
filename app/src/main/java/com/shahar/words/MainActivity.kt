@@ -27,9 +27,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -51,8 +54,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -67,7 +73,7 @@ val Red = Color(0xFFFF5A5F)
 val Bg = Color(0xFFFFF4FA)
 val Ink = Color(0xFF3A2A4D)
 
-enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics }
+enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics, Prep }
 
 class MainActivity : ComponentActivity() {
     private var startPractice by mutableStateOf(false)
@@ -76,6 +82,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         Store.init(this)
         Speaker.init(this)
+        HeSpeaker.init(this)
         Reminder.schedule(this)
         WordsWidget.updateAll(this)
         startPractice = intent?.getBooleanExtra(EXTRA_PRACTICE, false) == true
@@ -94,7 +101,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        if (isFinishing) Speaker.shutdown()
+        if (isFinishing) {
+            Speaker.shutdown()
+            HeSpeaker.shutdown()
+        }
         super.onDestroy()
     }
 
@@ -108,7 +118,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
     var screen by rememberSaveable { mutableStateOf(if (Store.profile == null) Screen.Who else if (Store.needsStarter) Screen.Pick else Screen.Home) }
     LaunchedEffect(startPractice) {
         if (startPractice && Store.profile != null && !Store.needsStarter) {
-            screen = Screen.Practice
+            screen = if (Store.prepFirst) Screen.Prep else Screen.Practice
             onStarted()
         }
     }
@@ -130,6 +140,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             Screen.Who -> WhoScreen { screen = if (Store.needsStarter) Screen.Pick else Screen.Home }
             Screen.Pick -> PickStarterScreen { screen = Screen.Home }
             Screen.Phonics -> PhonicsScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
+            Screen.Prep -> PrepScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
         }
     }
 }
@@ -214,7 +225,12 @@ fun HomeScreen(go: (Screen) -> Unit) {
             StatBox("⭐ ${Store.points}", "נקודות", Orange, Modifier.weight(1f))
             StatBox("🔥 ${Store.streak}", "ימים ברצף", Red, Modifier.weight(1f))
         }
-        Column(Modifier.fillMaxWidth()) {
+        if (Store.isTomer) {
+            BigButton("🧠 הכנה למבחן המחוננים", Color(0xFF3F7CF5)) { go(Screen.Prep) }
+        }
+        if (Store.prepFirst) {
+            Text("האנגלית בהפסקה עד אחרי המבחן. עכשיו מתאמנים למבחן! 🧠", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
+        } else Column(Modifier.fillMaxWidth()) {
             Text(Store.g("את כבר יודעת", "אתה כבר יודע") + " $known מתוך ${Store.words.size} מילים", fontSize = 16.sp, color = Ink)
             Spacer(Modifier.height(6.dp))
             LinearProgressIndicator(
@@ -224,14 +240,16 @@ fun HomeScreen(go: (Screen) -> Unit) {
                 trackColor = Color.White,
             )
         }
-        BigButton(Store.g("בואי נתאמן! 🎯", "בוא נתאמן! 🎯"), Pink) { go(Screen.Practice) }
-        BigButton("צלילים וקריאה 🔤", Green) { go(Screen.Phonics) }
+        if (!Store.prepFirst) {
+            BigButton(Store.g("בואי נתאמן! 🎯", "בוא נתאמן! 🎯"), Pink) { go(Screen.Practice) }
+            BigButton("צלילים וקריאה 🔤", Green) { go(Screen.Phonics) }
+        }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BigButton("הבית שלי 🏠", Purple, Modifier.weight(1f)) { go(Screen.House) }
             BigButton("חנות 🛍️", Orange, Modifier.weight(1f)) { go(Screen.Shop) }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            BigButton("כל המילים 📖", Blue, Modifier.weight(1f)) { go(Screen.Words) }
+            if (!Store.prepFirst) BigButton("כל המילים 📖", Blue, Modifier.weight(1f)) { go(Screen.Words) }
             BigButton("הגדרות ⚙️", Color(0xFF9A8FB0), Modifier.weight(1f)) { go(Screen.Settings) }
         }
         TextButton(onClick = { go(Screen.Who) }) {
@@ -287,6 +305,10 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         if (Store.hasExam && Store.isTomer) {
             TextButton(onClick = { Store.setExam(null) }) { Text("בלי מבחן (להסתיר את הספירה לאחור)", fontSize = 16.sp) }
+        }
+        if (Store.isTomer) {
+            Spacer(Modifier.height(10.dp))
+            GiftedSettings()
         }
         Spacer(Modifier.height(10.dp))
         Text(
@@ -421,4 +443,53 @@ fun PickStarterScreen(onPicked: () -> Unit) {
         }
         Text("את השאר אפשר לקנות אחר כך בחנות עם נקודות ⭐", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
     }
+}
+
+/** Parent-only switch: pause Tomer's English so the app focuses on the gifted test. */
+@Composable
+fun GiftedSettings() {
+    var asking by remember { mutableStateOf(false) }
+    Text("מבחן המחוננים 🧠", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+    Text(
+        if (Store.englishPaused) "האנגלית בהפסקה. במסך הבית רואים רק את ההכנה למבחן, והווידג'ט והתזכורת פותחים אותה."
+        else "האנגלית פעילה. ההכנה למבחן נמצאת בכפתור \"הכנה למבחן המחוננים\" במסך הבית.",
+        fontSize = 16.sp, color = Ink,
+    )
+    BigButton(if (Store.englishPaused) "להחזיר את האנגלית ▶️" else "לעצור את האנגלית עד המבחן ⏸️", Color(0xFF3F7CF5)) { asking = true }
+    if (asking) {
+        ParentGate(onDismiss = { asking = false }) {
+            asking = false
+            Store.setEnglishPaused(!Store.englishPaused)
+        }
+    }
+}
+
+/** A sum only a grown-up solves quickly, so the kids can't flip parent settings. */
+@Composable
+fun ParentGate(onDismiss: () -> Unit, onPass: () -> Unit) {
+    val a = remember { (23..49).random() }
+    val b = remember { (6..9).random() }
+    var text by remember { mutableStateOf("") }
+    var wrong by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("רק להורים 🔒", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("כדי להמשיך, כמה זה:", fontSize = 16.sp)
+                Text("$a × $b", fontSize = 28.sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Ltr))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it.filter { c -> c.isDigit() }.take(4); wrong = false },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                )
+                if (wrong) Text("לא נכון, נסו שוב", color = Red, fontSize = 15.sp)
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = { if (text.toIntOrNull() == a * b) onPass() else wrong = true }) { Text("אישור") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } },
+    )
 }
