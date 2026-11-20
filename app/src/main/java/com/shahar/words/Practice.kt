@@ -175,11 +175,12 @@ fun FlashCard(q: Q, onDone: (Boolean, Int) -> Unit) {
     LaunchedEffect(Unit) { Speaker.speak(q.word.en) }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Prompt(Store.g("כרטיסייה: את יודעת מה זה?", "כרטיסייה: אתה יודע מה זה?"))
-        WordCard(q.word.en, english = true, note = q.word.note, emoji = q.word.emoji)
+        WordCard(q.word.en, english = true, note = q.word.note)
         if (!flipped) {
             BigButton(Store.g("הפכי את הכרטיס 🔄", "הפוך את הכרטיס 🔄"), Purple) { flipped = true }
         } else {
-            WordCard(q.word.he)
+            // The picture is shown only after flipping, so the front makes him listen or read first.
+            WordCard(q.word.he, emoji = q.word.emoji)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
                 BigButton("עוד לא", Orange, Modifier.weight(1f)) { onDone(false, 0) }
