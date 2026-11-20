@@ -67,7 +67,7 @@ val Red = Color(0xFFFF5A5F)
 val Bg = Color(0xFFFFF4FA)
 val Ink = Color(0xFF3A2A4D)
 
-enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick }
+enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics }
 
 class MainActivity : ComponentActivity() {
     private var startPractice by mutableStateOf(false)
@@ -129,6 +129,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             Screen.Settings -> SettingsScreen { screen = Screen.Home }
             Screen.Who -> WhoScreen { screen = if (Store.needsStarter) Screen.Pick else Screen.Home }
             Screen.Pick -> PickStarterScreen { screen = Screen.Home }
+            Screen.Phonics -> PhonicsScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
         }
     }
 }
@@ -224,6 +225,7 @@ fun HomeScreen(go: (Screen) -> Unit) {
             )
         }
         BigButton(Store.g("בואי נתאמן! 🎯", "בוא נתאמן! 🎯"), Pink) { go(Screen.Practice) }
+        BigButton("צלילים וקריאה 🔤", Green) { go(Screen.Phonics) }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             BigButton("הבית שלי 🏠", Purple, Modifier.weight(1f)) { go(Screen.House) }
             BigButton("חנות 🛍️", Orange, Modifier.weight(1f)) { go(Screen.Shop) }

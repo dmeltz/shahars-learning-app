@@ -262,6 +262,13 @@ object Store {
         save()
     }
 
+    fun recordPhonics(key: String, correct: Boolean, pts: Int) {
+        val l = levels[key] ?: 0
+        levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
+        if (correct) points += pts
+        save()
+    }
+
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {
         val t = today()

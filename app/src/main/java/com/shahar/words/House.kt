@@ -102,13 +102,14 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                 ownedBuddies().forEach { put(it.id, if (it.id == Store.starter) Store.room else Random.nextInt(ROOMS.size)) }
             }
         }
-        fun roomOf(b: Buddy): Int = buddyRooms[b.id] ?: Store.room
+        // The kid's own first friend always follows them to the room they are looking at.
+        fun roomOf(b: Buddy): Int = if (b.id == Store.starter) Store.room else buddyRooms[b.id] ?: Store.room
         var news by remember { mutableStateOf<String?>(null) }
         // Every few seconds one of the friends goes for a walk to another room.
         LaunchedEffect(Unit) {
             while (true) {
                 delay(Random.nextLong(7000, 14000))
-                val b = ownedBuddies().randomOrNull() ?: continue
+                val b = ownedBuddies().filter { it.id != Store.starter }.randomOrNull() ?: continue
                 val from = roomOf(b)
                 val to = (from + 1 + Random.nextInt(ROOMS.size - 1)) % ROOMS.size
                 buddyRooms[b.id] = to
@@ -144,7 +145,7 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
             )
         } else {
             Text(
-                Store.g("גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על בוני כדי לשמוע מה היא אומרת.", "גרור חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחץ על החברים שלך כדי לשמוע מה הם אומרים."),
+                Store.g("גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על חבר כדי לשמוע מה הוא אומר. את החבר הראשון שלך אפשר לגרור, והוא תמיד בא איתך לחדר.", "גרור חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחץ על החברים שלך כדי לשמוע מה הם אומרים. את החבר הראשון שלך אפשר לגרור, והוא תמיד בא איתך לחדר."),
                 fontSize = 15.sp, color = Ink,
             )
         }
@@ -301,7 +302,7 @@ fun Room(modifier: Modifier, here: List<Buddy>) {
             }
             val buddySize = if (Store.buddies.size > 2) maxWidth * 0.2f else maxWidth * 0.26f
             here.forEachIndexed { i, b ->
-                key(b.id, roomNo) { RoomBoni(w, h, buddySize, b, i) }
+                key(b.id, roomNo) { RoomBoni(w, h, buddySize, b, i, main = b.id == Store.starter) }
             }
             SHOP.forEach { item ->
                 val p = Store.items[item.id]
@@ -445,16 +446,19 @@ fun ShopCard(
 }
 
 @Composable
-fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int) {
+fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int, main: Boolean = false) {
     val hour = remember { LocalTime.now().hour }
     var asleep by remember { mutableStateOf(hour >= 21 || hour < 7) }
-    var target by remember { mutableFloatStateOf(if (index % 2 == 0) 0f else 0.7f) }
+    var target by remember { mutableFloatStateOf(if (main) 0.35f else if (index % 2 == 0) 0f else 0.7f) }
     var first by remember { mutableStateOf(true) }
-    val rowY = 0.6f + (index % 2) * 0.08f
+    // The main friend can be dragged around; the others walk on their own.
+    var dragX by remember { mutableFloatStateOf(0.35f) }
+    var dragY by remember { mutableFloatStateOf(0.58f) }
+    val rowY = if (main) dragY else 0.6f + (index % 2) * 0.08f
     var talking by remember { mutableStateOf<String?>(null) }
     val x by animateFloatAsState(target, tween(2500), label = "boniX")
     LaunchedEffect(asleep) {
-        while (!asleep) {
+        while (!asleep && !main) {
             delay(if (first) 200L else Random.nextLong(3500, 7000))
             first = false
             target = Random.nextFloat() * 0.65f
@@ -473,7 +477,14 @@ fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int) {
     }
     Box(
         Modifier
-            .absoluteOffset { IntOffset((x * w).roundToInt(), (h * rowY).roundToInt()) }
+            .absoluteOffset { IntOffset(((if (main) dragX else x) * w).roundToInt(), (h * rowY).roundToInt()) }
+            .pointerInput(main) {
+                if (main) detectDragGestures { change, drag ->
+                    change.consume()
+                    dragX = (dragX + drag.x / w).coerceIn(0f, 0.75f)
+                    dragY = (dragY + drag.y / h).coerceIn(0f, 0.72f)
+                }
+            }
             .pointerInput(Unit) {
                 detectTapGestures {
                     asleep = false
