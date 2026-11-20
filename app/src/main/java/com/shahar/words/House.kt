@@ -357,9 +357,9 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
             modifier = Modifier.weight(1f),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Text("חברים ל" + (BUDDIES.firstOrNull { it.id == Store.starter }?.he ?: "בוני") + " 🐰", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+                Text("חברים ל" + (buddyList().firstOrNull { it.id == Store.starter }?.he ?: "בוני") + (if (Store.isTomer) " 🚀" else " 🐰"), fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
             }
-            items(BUDDIES.filter { it.id != Store.starter }) { b ->
+            items(buddyList().filter { it.id != Store.starter }) { b ->
                 val owned = Store.buddies.contains(b.id)
                 ShopCard("", b.he, b.about, Store.priceOf(b), owned, image = b.happy) {
                     if (Store.buyBuddy(b)) {

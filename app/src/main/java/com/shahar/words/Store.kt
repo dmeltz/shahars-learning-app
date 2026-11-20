@@ -178,10 +178,13 @@ object Store {
 
         // Tomer starts with no friend until he picks one.
         starter = prefs.getString("starter", if (p == TOMER) "" else "boni") ?: ""
+        // Early test builds let Tomer pick one of Shahar's friends. Ask him again with his own set.
+        if (p == TOMER && starter.isNotEmpty() && TOMER_BUDDIES.none { it.id == starter }) starter = ""
         val defBuddies = if (starter.isEmpty()) "[]" else "[\"$starter\"]"
         val bl = JSONArray(prefs.getString("buddies", defBuddies) ?: defBuddies)
         buddies.clear()
         for (i in 0 until bl.length()) buddies.add(bl.getString(i))
+        if (p == TOMER) buddies.retainAll { id -> TOMER_BUDDIES.any { it.id == id } }
         if (starter.isNotEmpty() && !buddies.contains(starter)) buddies.add(0, starter)
     }
 
@@ -304,7 +307,7 @@ object Store {
     /** Boni is free only as a first friend; for a kid who started with someone else she costs like the cheapest friend. */
     fun priceOf(b: Buddy): Int = when {
         b.id == starter -> 0
-        b.price == 0 -> BUDDIES.filter { it.price > 0 }.minOf { it.price }
+        b.price == 0 -> buddyList().filter { it.price > 0 }.minOf { it.price }
         else -> b.price
     }
 

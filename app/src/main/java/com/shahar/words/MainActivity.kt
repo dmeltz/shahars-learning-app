@@ -360,7 +360,7 @@ fun WhoScreen(onPicked: () -> Unit) {
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
         Spacer(Modifier.height(10.dp))
-        Row { BUDDIES.forEach { Boni(BoniMood.HAPPY, 70.dp, bounce = true, buddy = it) } }
+        Row { (BUDDIES.take(2) + TOMER_BUDDIES.take(2)).forEach { Boni(BoniMood.HAPPY, 70.dp, bounce = true, buddy = it) } }
         Text("מי משחק?", fontSize = 34.sp, fontWeight = FontWeight.Bold, color = Ink)
         listOf(
             Triple(SHAHAR, "שחר 🌸", Pink),
@@ -398,7 +398,7 @@ fun PickStarterScreen(onPicked: () -> Unit) {
                 "בחר את החבר הראשון שלך. הוא יגור איתך בבית ויעודד אותך בתרגול!"),
             fontSize = 18.sp, color = Ink, textAlign = TextAlign.Center,
         )
-        BUDDIES.chunked(2).forEach { pair ->
+        buddyList().chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEach { b ->
                     Column(

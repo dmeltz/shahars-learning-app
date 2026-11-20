@@ -133,7 +133,7 @@ class WordsWidget : AppWidgetProvider() {
             v.setTextViewText(R.id.w_label, label)
             val done = if (Store.practicedToday()) " ✓" else ""
             v.setTextViewText(R.id.w_points, "⭐ ${Store.points}$done")
-            val owned = ownedBuddies().ifEmpty { listOf(BUDDIES[0]) }
+            val owned = ownedBuddies().ifEmpty { listOf(buddyList()[0]) }
             val slot = (System.currentTimeMillis() / (30 * 60 * 1000L)).toInt()
             val buddy = owned[slot % owned.size]
             v.setImageViewResource(
