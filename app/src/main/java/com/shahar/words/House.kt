@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
@@ -74,8 +75,8 @@ private val FloorLine = Color(0xFFD29E6C)
 @Composable
 fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         TopBar("הבית שלי", onBack)
         Row(
@@ -93,7 +94,7 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                     modifier = Modifier.clip(RoundedCornerShape(16.dp))
                         .background(if (on) Purple else Color.White)
                         .clickable { Store.goToRoom(i) }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
                 )
             }
         }
@@ -105,17 +106,17 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         // The kid's own first friend always follows them to the room they are looking at.
         fun roomOf(b: Buddy): Int = if (b.id == Store.starter) Store.room else buddyRooms[b.id] ?: Store.room
         var news by remember { mutableStateOf<String?>(null) }
-        // Every few seconds one of the friends goes for a walk to another room.
+        // Every few seconds one of the friends walks over to another room.
         LaunchedEffect(Unit) {
             while (true) {
-                delay(Random.nextLong(7000, 14000))
+                delay(Random.nextLong(9000, 16000))
                 val b = ownedBuddies().filter { it.id != Store.starter }.randomOrNull() ?: continue
                 val from = roomOf(b)
                 val to = (from + 1 + Random.nextInt(ROOMS.size - 1)) % ROOMS.size
                 buddyRooms[b.id] = to
                 news = when {
                     from == Store.room -> "${b.he} יצא/ה לטייל ב${ROOMS[to]} 👋"
-                    to == Store.room -> "${b.he} באה לבקר כאן! 🎉"
+                    to == Store.room -> "${b.he} בדרך לבקר כאן! 🎉"
                     else -> null
                 }
             }
@@ -126,224 +127,58 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                 news = null
             }
         }
-        Room(Modifier.fillMaxWidth().aspectRatio(0.9f), ownedBuddies().filter { roomOf(it) == Store.room })
-        news?.let {
-            Text(it, fontSize = 16.sp, color = Green, fontWeight = FontWeight.Bold)
-        }
+        House3D(
+            Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp)).border(3.dp, Purple, RoundedCornerShape(24.dp)),
+            buddyRooms,
+        )
         val elsewhere = ownedBuddies().filter { roomOf(it) != Store.room }
-        if (elsewhere.isNotEmpty()) {
-            Text(
-                "👀 " + elsewhere.joinToString(" · ") { "${it.he} ב${ROOMS[roomOf(it)]}" },
-                fontSize = 15.sp, color = Purple, fontWeight = FontWeight.Bold,
-            )
-        }
-        val hereItems = Store.items.values.count { it.inRoom && it.room == Store.room }
-        if (hereItems == 0) {
-            Text(
-                Store.g("החדר הזה עדיין ריק. אספי נקודות בתרגול ותקני חפצים בחנות, או החזירי חפצים מהמחסן!", "החדר הזה עדיין ריק. אסוף נקודות בתרגול ותקנה חפצים בחנות, או תחזיר חפצים מהמחסן!"),
-                fontSize = 17.sp, color = Ink, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
-            )
-        } else {
-            Text(
-                Store.g("גררי חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחצי על חבר כדי לשמוע מה הוא אומר. את החבר הראשון שלך אפשר לגרור, והוא תמיד בא איתך לחדר.", "גרור חפצים כדי לסדר את החדר. לחיצה כפולה על חפץ מעבירה אותו למחסן. לחץ על החברים שלך כדי לשמוע מה הם אומרים. את החבר הראשון שלך אפשר לגרור, והוא תמיד בא איתך לחדר."),
-                fontSize = 15.sp, color = Ink,
-            )
-        }
+        val status = news ?: if (elsewhere.isNotEmpty()) "👀 " + elsewhere.joinToString(" · ") { "${it.he} ב${ROOMS[roomOf(it)]}" } else null
+        Text(
+            status ?: Store.g(
+                "סובבי עם האצבע, צבטי כדי להתקרב. גררי חפצים, הקישי כדי לסובב, הקשה כפולה למחסן.",
+                "סובב עם האצבע, צבוט כדי להתקרב. גרור חפצים, הקש כדי לסובב, הקשה כפולה למחסן.",
+            ),
+            fontSize = 14.sp, color = if (news != null) Green else if (status != null) Purple else Ink, fontWeight = FontWeight.Bold,
+            maxLines = 2, overflow = TextOverflow.Ellipsis,
+        )
         val stored = SHOP.filter { Store.items[it.id]?.inRoom == false }
-        if (stored.isNotEmpty()) {
-            Text(Store.g("📦 המחסן (לחצי כדי להחזיר לחדר):", "📦 המחסן (לחץ כדי להחזיר לחדר):"), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                stored.forEach { item ->
-                    Text(
-                        item.emoji, fontSize = 38.sp,
-                        modifier = Modifier.clip(RoundedCornerShape(14.dp)).background(Color.White)
-                            .clickable { Store.place(item.id, true) }.padding(8.dp),
-                    )
-                }
-            }
-        }
-        Text("צבע הקיר ב${ROOMS[Store.room]}:", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Ink)
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(
+            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             WALLS.filter { Store.walls.contains(it.id) }.forEach { w ->
                 Spacer(
-                    Modifier.size(44.dp).clip(CircleShape).background(w.color)
+                    Modifier.size(38.dp).clip(CircleShape).background(w.color)
                         .border(if (Store.roomWalls[Store.room] == w.id) 4.dp else 1.dp, Purple, CircleShape)
                         .clickable { Store.setRoomWall(w.id) }
                 )
             }
+            if (stored.isNotEmpty()) {
+                Text("📦", fontSize = 24.sp)
+                stored.forEach { item ->
+                    VoxImage(
+                        "vox_item_${item.id}", item.he,
+                        Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Color.White)
+                            .clickable { Store.place(item.id, true) }.padding(4.dp),
+                    )
+                }
+            }
+        }
+        if (stored.isNotEmpty()) {
+            Text(Store.g("הקישי על חפץ מהמחסן 📦 כדי להחזיר אותו ל", "הקש על חפץ מהמחסן 📦 כדי להחזיר אותו ל") + ROOMS[Store.room], fontSize = 13.sp, color = Ink)
         }
         BigButton("לחנות 🛍️", Orange, onClick = onShop)
     }
 }
 
+/** A picture rendered from the 3D models (res/drawable-nodpi/vox_*.png). */
 @Composable
-fun Room(modifier: Modifier, here: List<Buddy>) {
-    val roomNo = Store.room
-    val wallColor = WALLS.firstOrNull { it.id == Store.roomWalls[roomNo] }?.color ?: WALLS[0].color
-    // Positions are stored left-to-right, so the room is laid out LTR.
-    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
-        BoxWithConstraints(modifier.clip(RoundedCornerShape(24.dp)).border(3.dp, Purple, RoundedCornerShape(24.dp))) {
-            val w = constraints.maxWidth.toFloat()
-            val h = constraints.maxHeight.toFloat()
-            Canvas(Modifier.fillMaxSize()) {
-                val wallH = size.height * 0.55f
-                drawRect(wallColor, size = Size(size.width, wallH))
-                drawRect(Floor, topLeft = Offset(0f, wallH), size = Size(size.width, size.height - wallH))
-                when (roomNo) {
-                    1 -> {
-                        // Dining room: tiled floor and a hanging lamp.
-                        val tile = size.width / 8f
-                        var row = 0
-                        var y = wallH
-                        while (y < size.height) {
-                            var col = 0
-                            while (col * tile < size.width) {
-                                if ((row + col) % 2 == 0) {
-                                    drawRect(Color(0xFFFFFFFF), Offset(col * tile, y), Size(tile, tile))
-                                } else {
-                                    drawRect(Color(0xFFB8C7E0), Offset(col * tile, y), Size(tile, tile))
-                                }
-                                col++
-                            }
-                            y += tile
-                            row++
-                        }
-                        val cx = size.width * 0.5f
-                        drawLine(Ink, Offset(cx, 0f), Offset(cx, size.height * 0.14f), strokeWidth = 4f)
-                        drawArc(Orange, 180f, 180f, true, Offset(cx - size.width * 0.09f, size.height * 0.1f),
-                            Size(size.width * 0.18f, size.height * 0.12f))
-                        drawCircle(Color(0xFFFFE14D), radius = size.width * 0.025f, center = Offset(cx, size.height * 0.165f))
-                    }
-                    2 -> {
-                        // Living room: wooden floor with a big round rug.
-                        for (i in 1..5) {
-                            val y = wallH + (size.height - wallH) * i / 6f
-                            drawLine(FloorLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
-                        }
-                        drawOval(Color(0xFFFF9EC4), Offset(size.width * 0.12f, size.height * 0.68f), Size(size.width * 0.76f, size.height * 0.24f))
-                        drawOval(Color(0xFFFFD1E3), Offset(size.width * 0.2f, size.height * 0.72f), Size(size.width * 0.6f, size.height * 0.16f))
-                    }
-                    3 -> {
-                        // Bathroom: tiled lower wall and floor.
-                        val t = size.width / 10f
-                        var y = wallH * 0.55f
-                        while (y < wallH) {
-                            var x = 0f
-                            while (x < size.width) {
-                                drawRect(Color(0xFF9FD8F5), Offset(x + 2f, y + 2f), Size(t - 4f, t * 0.6f - 4f))
-                                x += t
-                            }
-                            y += t * 0.6f
-                        }
-                        var fy = wallH
-                        var row = 0
-                        while (fy < size.height) {
-                            var col = 0
-                            while (col * t < size.width) {
-                                drawRect(if ((row + col) % 2 == 0) Color.White else Color(0xFFCDEBFF), Offset(col * t, fy), Size(t, t))
-                                col++
-                            }
-                            fy += t
-                            row++
-                        }
-                        drawOval(Color.White, Offset(size.width * 0.58f, size.height * 0.06f), Size(size.width * 0.22f, size.height * 0.2f))
-                        drawOval(Color(0xFFE6F6FF), Offset(size.width * 0.6f, size.height * 0.075f), Size(size.width * 0.18f, size.height * 0.17f))
-                    }
-                    4 -> {
-                        // Garden: sky, sun, clouds, a fence and grass.
-                        drawRect(Color(0xFFBDE7FF), size = Size(size.width, wallH))
-                        drawCircle(Color(0xFFFFE14D), radius = size.width * 0.08f, center = Offset(size.width * 0.82f, size.height * 0.12f))
-                        listOf(0.12f to 0.1f, 0.45f to 0.18f).forEach { (cx, cy) ->
-                            drawOval(Color.White, Offset(size.width * cx, size.height * cy), Size(size.width * 0.22f, size.height * 0.07f))
-                            drawOval(Color.White, Offset(size.width * (cx + 0.05f), size.height * (cy - 0.035f)), Size(size.width * 0.12f, size.height * 0.07f))
-                        }
-                        drawRect(Color(0xFF7ED957), Offset(0f, wallH), Size(size.width, size.height - wallH))
-                        for (i in 1..5) {
-                            val y = wallH + (size.height - wallH) * i / 6f
-                            drawLine(Color(0xFF5CC23A), Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
-                        }
-                        val post = size.width / 12f
-                        var x = post * 0.2f
-                        while (x < size.width) {
-                            drawRoundRect(Color.White, Offset(x, wallH * 0.62f), Size(post * 0.55f, wallH * 0.4f), CornerRadius(8f))
-                            x += post
-                        }
-                        drawRect(Color.White, Offset(0f, wallH * 0.72f), Size(size.width, wallH * 0.06f))
-                    }
-                    else -> {
-                        for (i in 1..5) {
-                            val y = wallH + (size.height - wallH) * i / 6f
-                            drawLine(FloorLine, Offset(0f, y), Offset(size.width, y), strokeWidth = 3f)
-                        }
-                    }
-                }
-                if (roomNo <= 2) drawRect(Color.White, topLeft = Offset(0f, wallH - 10f), size = Size(size.width, 14f))
-                val wx = if (roomNo == 1) size.width * 0.08f else size.width * 0.62f
-                val wy = size.height * 0.08f
-                val ww = if (roomNo == 2) size.width * 0.3f else size.width * 0.28f
-                val wh = size.height * 0.24f
-                val windows = when (roomNo) {
-                    2 -> listOf(size.width * 0.1f, size.width * 0.6f)
-                    3, 4 -> emptyList()
-                    else -> listOf(wx)
-                }
-                windows.forEach { x0 ->
-                    drawRoundRect(Color(0xFFBDE7FF), Offset(x0, wy), Size(ww, wh), CornerRadius(14f))
-                    drawRoundRect(Color.White, Offset(x0, wy), Size(ww, wh), CornerRadius(14f), style = Stroke(9f))
-                    drawLine(Color.White, Offset(x0 + ww / 2, wy), Offset(x0 + ww / 2, wy + wh), strokeWidth = 7f)
-                    drawLine(Color.White, Offset(x0, wy + wh / 2), Offset(x0 + ww, wy + wh / 2), strokeWidth = 7f)
-                }
-                windows.firstOrNull()?.let { x0 ->
-                    drawCircle(Color(0xFFFFE14D), radius = ww * 0.12f, center = Offset(x0 + ww * 0.25f, wy + wh * 0.25f))
-                }
-            }
-            val buddySize = if (Store.buddies.size > 2) maxWidth * 0.2f else maxWidth * 0.26f
-            here.forEachIndexed { i, b ->
-                key(b.id, roomNo) { RoomBoni(w, h, buddySize, b, i, main = b.id == Store.starter) }
-            }
-            SHOP.forEach { item ->
-                val p = Store.items[item.id]
-                if (p != null && p.inRoom && p.room == roomNo) {
-                    Text(
-                        item.emoji,
-                        fontSize = item.size.sp,
-                        modifier = Modifier
-                            .absoluteOffset { IntOffset((p.x * w).roundToInt(), (p.y * h).roundToInt()) }
-                            .pointerInput(item.id) {
-                                detectDragGestures(onDragEnd = { Store.save() }) { change, drag ->
-                                    change.consume()
-                                    Store.move(item.id, drag.x / w, drag.y / h)
-                                }
-                            }
-                            .pointerInput(item.id + "-tap") {
-                                detectTapGestures(onDoubleTap = { Store.place(item.id, false) })
-                            },
-                    )
-                }
-            }
-            if (roomNo > 0) {
-                Text(
-                    "◀ ${ROOMS[roomNo - 1]}",
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                    modifier = Modifier.align(Alignment.CenterStart).clip(RoundedCornerShape(topEnd = 14.dp, bottomEnd = 14.dp))
-                        .background(Purple.copy(alpha = 0.85f)).clickable { Store.goToRoom(roomNo - 1) }
-                        .padding(horizontal = 10.dp, vertical = 12.dp),
-                )
-            }
-            if (roomNo < ROOMS.size - 1) {
-                Text(
-                    "${ROOMS[roomNo + 1]} ▶",
-                    fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White,
-                    modifier = Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(topStart = 14.dp, bottomStart = 14.dp))
-                        .background(Purple.copy(alpha = 0.85f)).clickable { Store.goToRoom(roomNo + 1) }
-                        .padding(horizontal = 10.dp, vertical = 12.dp),
-                )
-            }
-        }
-    }
+fun VoxImage(name: String, description: String, modifier: Modifier) {
+    val ctx = LocalContext.current
+    val id = remember(name) { ctx.resources.getIdentifier(name, "drawable", ctx.packageName) }
+    if (id != 0) Image(painterResource(id), contentDescription = description, modifier = modifier)
+    else Spacer(modifier)
 }
 
 @Composable
@@ -377,7 +212,7 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                 }
                 items(SHOP.filter { it.room == r }) { item ->
                     val owned = Store.items.containsKey(item.id)
-                    ShopCard(item.emoji, item.he, item.en, item.price, owned) {
+                    ShopCard(item.emoji, item.he, item.en, item.price, owned, voxName = "vox_item_${item.id}") {
                         if (Store.buy(item)) {
                             Toast.makeText(ctx, "קנית ${item.he}! מחכה לך ב$roomName 🏠", Toast.LENGTH_SHORT).show()
                         } else {
@@ -415,6 +250,7 @@ fun ShopCard(
     owned: Boolean,
     swatch: Color? = null,
     image: Int? = null,
+    voxName: String? = null,
     onBuy: () -> Unit,
 ) {
     val canBuy = !owned && Store.points >= price
@@ -427,6 +263,8 @@ fun ShopCard(
     ) {
         if (image != null) {
             Image(painterResource(image), contentDescription = he, modifier = Modifier.size(72.dp))
+        } else if (voxName != null) {
+            VoxImage(voxName, he, Modifier.size(72.dp))
         } else {
             Text(emoji, fontSize = 44.sp)
         }
@@ -441,72 +279,6 @@ fun ShopCard(
                 .background(if (owned) Color.Transparent else if (canBuy) Orange else Color(0xFFEDE7F6))
                 .clickable(enabled = !owned) { onBuy() }
                 .padding(vertical = 8.dp),
-        )
-    }
-}
-
-@Composable
-fun RoomBoni(w: Float, h: Float, size: Dp, buddy: Buddy, index: Int, main: Boolean = false) {
-    val hour = remember { LocalTime.now().hour }
-    var asleep by remember { mutableStateOf(hour >= 21 || hour < 7) }
-    var target by remember { mutableFloatStateOf(if (main) 0.35f else if (index % 2 == 0) 0f else 0.7f) }
-    var first by remember { mutableStateOf(true) }
-    // The main friend can be dragged around; the others walk on their own.
-    var dragX by remember { mutableFloatStateOf(0.35f) }
-    var dragY by remember { mutableFloatStateOf(0.58f) }
-    val rowY = if (main) dragY else 0.6f + (index % 2) * 0.08f
-    var talking by remember { mutableStateOf<String?>(null) }
-    val x by animateFloatAsState(target, tween(2500), label = "boniX")
-    LaunchedEffect(asleep) {
-        while (!asleep && !main) {
-            delay(if (first) 200L else Random.nextLong(3500, 7000))
-            first = false
-            target = Random.nextFloat() * 0.65f
-        }
-    }
-    LaunchedEffect(talking) {
-        if (talking != null) {
-            delay(2800)
-            talking = null
-        }
-    }
-    val mood = when {
-        talking != null -> BoniMood.CHEER
-        asleep -> BoniMood.SLEEPY
-        else -> BoniMood.HAPPY
-    }
-    Box(
-        Modifier
-            .absoluteOffset { IntOffset(((if (main) dragX else x) * w).roundToInt(), (h * rowY).roundToInt()) }
-            .pointerInput(main) {
-                if (main) detectDragGestures { change, drag ->
-                    change.consume()
-                    dragX = (dragX + drag.x / w).coerceIn(0f, 0.75f)
-                    dragY = (dragY + drag.y / h).coerceIn(0f, 0.72f)
-                }
-            }
-            .pointerInput(Unit) {
-                detectTapGestures {
-                    asleep = false
-                    talking = "${buddy.he}: " + boniLines().random()
-                }
-            }
-    ) {
-        Boni(mood, size, bounce = !asleep, buddy = buddy)
-    }
-    val line = talking ?: if (asleep && index == 0) Store.g("זזז... כולם ישנים. לחצי על מישהו כדי להעיר", "זזז... כולם ישנים. לחץ על מישהו כדי להעיר") else null
-    if (line != null) {
-        Text(
-            line,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold,
-            color = Ink,
-            modifier = Modifier
-                .absoluteOffset { IntOffset((w * 0.05f).roundToInt(), (h * 0.42f).roundToInt()) }
-                .widthIn(max = 260.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
         )
     }
 }
