@@ -84,8 +84,12 @@ sealed class PrepItem {
     data class Story(val p: WordProblem) : PrepItem()
 }
 
-private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> =
-    HE_WORDS.filter { it != w && (!samePos || it.pos == w.pos) }.shuffled()
+/** Other words for wrong options: the same kind of word when there are enough of them. */
+private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> {
+    val same = HE_WORDS.filter { it != w && it.pos == w.pos }.shuffled()
+    val rest = HE_WORDS.filter { it != w && it.pos != w.pos }.shuffled()
+    return if (samePos && same.size >= 3) same else same + rest
+}
 
 fun meaningQ(w: HeWord): ChoiceQ {
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
@@ -430,6 +434,8 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
         ) {
             Text(w.word, fontSize = 40.sp, fontWeight = FontWeight.Bold, color = Ink)
             if (w.fromSample) Text("⭐ מילה מהמבחן לדוגמה", fontSize = 14.sp, color = Orange)
+            Spacer(Modifier.height(12.dp))
+            Text(marked(w.sentence, w.form), fontSize = 22.sp, color = Ink, lineHeight = 32.sp, textAlign = TextAlign.Center)
         }
         if (!flipped) {
             BigButton("הפוך את הכרטיס 🔄", Purple) { flipped = true }
@@ -438,11 +444,7 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
                 Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp)).background(Color(0xFFF1ECFF)).padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Text("הפירוש: ${w.meaning}", fontSize = 21.sp, fontWeight = FontWeight.Bold, color = Purple)
-                Text("במשפט:", fontSize = 15.sp, color = Ink)
-                Text(marked(w.sentence, w.form), fontSize = 21.sp, color = Ink, lineHeight = 30.sp)
-                if (w.syn.isNotEmpty()) Text("מילה דומה: ${w.syn}", fontSize = 17.sp, color = Ink)
-                if (w.opp.isNotEmpty()) Text("ההפך: ${w.opp}", fontSize = 17.sp, color = Ink)
+                Text("הפירוש: ${w.meaning}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Purple, lineHeight = 32.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
