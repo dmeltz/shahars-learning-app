@@ -118,10 +118,33 @@ fun oppositeQ(w: HeWord): ChoiceQ {
         "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form)
 }
 
+/**
+ * Which sentence uses the word right? The sentences come in turn from [USAGE], so he doesn't see
+ * the same ones again until he has gone through the rest. The turn is saved with his levels.
+ */
+fun usageQ(w: HeWord): ChoiceQ? {
+    val (right, wrong) = USAGE[w.id] ?: return null
+    val turnKey = "us:${w.id}"
+    val c = Store.levels[turnKey] ?: 0
+    Store.levels[turnKey] = c + 1
+    val good = right[c % right.size]
+    val bad = (0 until 3).map { wrong[(c * 3 + it) % wrong.size] }
+    val (opts, idx) = shuffleChoice(good, bad)
+    return ChoiceQ(heKey(w), "בְּאֵיזֶה מִשְׁפָּט הַמִּלָּה מַתְאִימָה?", w.word, opts, idx,
+        "המשפט הנכון:\n$good\n${w.word} = ${w.meaning}", mark = w.word)
+}
+
+/** A flashcard is always followed by a question on using the word in a sentence. */
+fun vocabItems(w: HeWord): List<PrepItem> {
+    val item = vocabItem(w)
+    val usage = usageQ(w)
+    return if (item is PrepItem.Flash && usage != null) listOf(item, PrepItem.Choice(usage)) else listOf(item)
+}
+
 fun vocabItem(w: HeWord): PrepItem {
     val lvl = heLevel(w)
     if (lvl == 0) return PrepItem.Flash(w)
-    val kinds = mutableListOf("meaning", "cloze")
+    val kinds = mutableListOf("meaning", "cloze", "usage")
     if (lvl >= 2 && w.syn.isNotEmpty()) kinds += "syn"
     if (lvl >= 2 && w.opp.isNotEmpty()) kinds += "opp"
     if (lvl <= 1) kinds += "flash"
@@ -129,6 +152,7 @@ fun vocabItem(w: HeWord): PrepItem {
         "flash" -> PrepItem.Flash(w)
         "meaning" -> PrepItem.Choice(meaningQ(w))
         "cloze" -> PrepItem.Choice(clozeQ(w))
+        "usage" -> PrepItem.Choice(usageQ(w) ?: meaningQ(w))
         "syn" -> PrepItem.Choice(synonymQ(w))
         else -> PrepItem.Choice(oppositeQ(w))
     }
@@ -154,13 +178,14 @@ enum class PrepArea(val title: String, val emoji: String) {
 }
 
 fun buildPrepRound(area: PrepArea): List<PrepItem> = when (area) {
-    PrepArea.VOCAB -> pickHeWords(8).map { vocabItem(it) }
+    PrepArea.VOCAB -> pickHeWords(8).flatMap { vocabItems(it) }
     PrepArea.MATH -> mathRound(10).map { PrepItem.Choice(it) }
     PrepArea.STORY -> wordProblems(5).map { PrepItem.Story(it) }
     PrepArea.READING -> readingRound()
-    PrepArea.MIX -> (pickHeWords(3).map { vocabItem(it) } +
-        mathRound(4).map { PrepItem.Choice(it) } +
-        wordProblems(2).map { PrepItem.Story(it) }).shuffled()
+    // Shuffled as blocks, so a flashcard keeps its sentence question right after it.
+    PrepArea.MIX -> (pickHeWords(3).map { vocabItems(it) } +
+        mathRound(4).map { listOf(PrepItem.Choice(it)) } +
+        wordProblems(2).map { listOf(PrepItem.Story(it)) }).shuffled().flatten()
 }
 
 // ---------------- Screens ----------------
@@ -247,15 +272,15 @@ fun PrepRoundScreen(area: PrepArea, onExit: () -> Unit, onHouse: () -> Unit) {
                     }
                     when (item) {
                         is PrepItem.Choice -> ChoiceView(item.q) { ok, pts ->
-                            Store.recordPhonics(item.q.key, ok, pts)
+                            Store.recordPrep(item.q.key, ok, pts)
                             done(ok, pts)
                         }
                         is PrepItem.Flash -> HeFlashCard(item.w) { ok, pts ->
-                            Store.recordPhonics(heKey(item.w), ok, pts)
+                            Store.recordPrep(heKey(item.w), ok, 0)
                             done(ok, pts)
                         }
                         is PrepItem.Story -> StoryView(item.p) { ok, pts ->
-                            Store.recordPhonics("wp:${item.p.id}", ok, pts)
+                            Store.recordPrep("wp:${item.p.id}", ok, pts)
                             done(ok, pts)
                         }
                     }
@@ -362,11 +387,14 @@ private fun OptionCell(text: String, i: Int, answer: Int, chosen: Int, ltr: Bool
         )
     }
 
+/** A wrong answer costs a quarter of what a right one earns (rounded). */
+fun penalty(pts: Int) = (pts + 2) / 4
+
 @Composable
 fun PrepFeedback(ok: Boolean, pts: Int, explain: String) {
     val praise = remember(ok) { listOf("מעולה!", "כל הכבוד!", "אלוף!", "יש!", "מדהים!", "בדיוק!").random() }
     BoniSays(
-        if (ok) "$praise +$pts ⭐" else "לא נורא! בוא נראה איך פותרים:",
+        if (ok) "$praise +$pts ⭐" else "לא נורא! (−${penalty(pts)} ⭐) בוא נראה איך פותרים:",
         if (ok) BoniMood.CHEER else BoniMood.HAPPY,
         if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00),
         size = 60.dp, fontSize = 18,
@@ -417,7 +445,7 @@ fun ChoiceView(q: ChoiceQ, onDone: (Boolean, Int) -> Unit) {
             val ok = chosen == q.answer
             // When he's right he sees the explanation only for math, where the way matters.
             PrepFeedback(ok, q.pts, if (ok && !q.ltr) "" else q.explain)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) q.pts else 0) }
+            BigButton("הבא", Purple) { onDone(ok, if (ok) q.pts else -penalty(q.pts)) }
         }
     }
 }
@@ -447,7 +475,7 @@ fun HeFlashCard(w: HeWord, onDone: (Boolean, Int) -> Unit) {
                 Text("הפירוש: ${w.meaning}", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Purple, lineHeight = 32.sp)
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
+                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 0) }
                 BigButton("עוד לא", Orange, Modifier.weight(1f)) { onDone(false, 0) }
             }
         }
@@ -482,7 +510,7 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                     val ok = chosen == exChoice.second
                     PrepFeedback(ok, 10, if (ok) "" else opHint(p.op) + "\nהתרגיל הנכון:\n${p.exercise}")
                     BigButton("לשלב הבא", Purple) {
-                        if (ok) pts += 10
+                        pts += if (ok) 10 else -penalty(10)
                         step = 1
                     }
                 }
@@ -497,7 +525,7 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                 if (chosen >= 0) {
                     val ok = chosen == ansChoice.second
                     PrepFeedback(ok, 10, p.why + "\nהתשובה: ${p.answer} ${p.unit}")
-                    BigButton("הבא", Purple) { onDone(ok, pts + if (ok) 10 else 0) }
+                    BigButton("הבא", Purple) { onDone(ok, pts + if (ok) 10 else -penalty(10)) }
                 }
             }
         }
