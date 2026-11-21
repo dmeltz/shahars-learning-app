@@ -1,0 +1,16 @@
+{
+  "name": "house3d",
+  "private": true,
+  "type": "module",
+  "description": "The 3D voxel house shown inside the app (WebView). Build: npm install && npm run build",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --minify --format=iife --target=es2017 --outfile=../../app/src/main/assets/house/house.js",
+    "thumbs": "node thumbs.mjs"
+  },
+  "dependencies": {
+    "three": "0.170.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.0"
+  }
+}

@@ -15,7 +15,19 @@ import org.json.JSONObject
 import java.time.LocalDate
 import kotlin.random.Random
 
-data class Placement(val x: Float, val y: Float, val inRoom: Boolean, val room: Int = 0)
+/**
+ * Where an item is. x/y are its spot in the old flat room picture (kept so nothing is lost);
+ * gx/gz/rot are its spot and turn in the 3D house, NaN until the item is first moved there.
+ */
+data class Placement(
+    val x: Float,
+    val y: Float,
+    val inRoom: Boolean,
+    val room: Int = 0,
+    val gx: Float = Float.NaN,
+    val gz: Float = Float.NaN,
+    val rot: Int = 0,
+)
 
 data class ShopItem(
     val id: String,
@@ -178,7 +190,10 @@ object Store {
         val its = JSONObject(prefs.getString("items", "{}") ?: "{}")
         its.keys().forEach { k ->
             val o = its.getJSONObject(k)
-            items[k] = Placement(o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getBoolean("r"), o.optInt("m", 0))
+            items[k] = Placement(
+                o.getDouble("x").toFloat(), o.getDouble("y").toFloat(), o.getBoolean("r"), o.optInt("m", 0),
+                o.optDouble("gx", Double.NaN).toFloat(), o.optDouble("gz", Double.NaN).toFloat(), o.optInt("rot", 0),
+            )
         }
 
         val wl = JSONArray(prefs.getString("walls", "[\"cream\"]") ?: "[\"cream\"]")
@@ -203,7 +218,10 @@ object Store {
         levels.forEach { (k, v) -> lv.put(k, v) }
         val its = JSONObject()
         items.forEach { (k, p) ->
-            its.put(k, JSONObject().put("x", p.x.toDouble()).put("y", p.y.toDouble()).put("r", p.inRoom).put("m", p.room))
+            val o = JSONObject().put("x", p.x.toDouble()).put("y", p.y.toDouble()).put("r", p.inRoom).put("m", p.room)
+            if (!p.gx.isNaN() && !p.gz.isNaN()) o.put("gx", p.gx.toDouble()).put("gz", p.gz.toDouble())
+            if (p.rot != 0) o.put("rot", p.rot)
+            its.put(k, o)
         }
         prefs.edit()
             .putInt("points", points)
@@ -353,7 +371,16 @@ object Store {
 
     fun place(id: String, inRoom: Boolean) {
         val p = items[id] ?: return
-        items[id] = if (inRoom) p.copy(inRoom = true, room = room) else p.copy(inRoom = false)
+        // Back from the storeroom: it goes to the room on screen, to its usual spot there.
+        items[id] = if (inRoom) p.copy(inRoom = true, room = room, gx = Float.NaN, gz = Float.NaN) else p.copy(inRoom = false)
+        save()
+    }
+
+    /** An item was dragged or turned in the 3D house. */
+    fun move3d(id: String, gx: Float, gz: Float, rot: Int, newRoom: Int) {
+        val p = items[id] ?: return
+        if (gx.isNaN() || gz.isNaN()) return
+        items[id] = p.copy(gx = gx, gz = gz, rot = rot.mod(4), room = newRoom.coerceIn(0, ROOMS.size - 1))
         save()
     }
 
