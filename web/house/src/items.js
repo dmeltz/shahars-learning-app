@@ -336,6 +336,49 @@ export const ITEM_MODELS = {
     [0, -1, 3.5, 1, 1, 1.5, INK],
   ],
   bunny: () => pet({ body: '#F2EEE8', light: '#FFFFFF', bunny: true }),
+  goal: () => {
+    // A soccer goal: white frame, net on the back, sides and top. The open side faces +z.
+    const NET = '#E9EEF2', W2 = 20, D2 = 7, H = 20;
+    const out = [
+      [-W2, 0, D2 - 1, 2, H, 2, WHITE], [W2, 0, D2 - 1, 2, H, 2, WHITE], [0, H - 2, D2 - 1, 2 * W2 + 2, 2, 2, WHITE],
+      [-W2, 0, -D2, 1.4, H - 1, 1.4, OFF], [W2, 0, -D2, 1.4, H - 1, 1.4, OFF], [0, H - 2, -D2, 2 * W2, 1.4, 1.4, OFF],
+      [-W2, H - 2, 0, 1.4, 1.4, 2 * D2, OFF], [W2, H - 2, 0, 1.4, 1.4, 2 * D2, OFF],
+      [0, 0, -D2, 2 * W2, 0.8, 1.4, OFF], [-W2, 0, 0, 1.4, 0.8, 2 * D2, OFF], [W2, 0, 0, 1.4, 0.8, 2 * D2, OFF],
+      [0, 0, -D2 - 0.2, 2 * W2, H - 2, 0.2, '#FFFFFF', 'glass'],
+      [0, H - 1.2, 0, 2 * W2, 0.2, 2 * D2, '#FFFFFF', 'glass'],
+      [-W2, 0, 0, 0.2, H - 2, 2 * D2, '#FFFFFF', 'glass'], [W2, 0, 0, 0.2, H - 2, 2 * D2, '#FFFFFF', 'glass'],
+    ];
+    for (let x = -W2 + 4; x < W2; x += 4) out.push([x, 0, -D2, 0.3, H - 2, 0.3, NET], [x, H - 1.5, 0, 0.3, 0.3, 2 * D2, NET]);
+    for (let y = 3; y < H - 2; y += 3) out.push([0, y, -D2, 2 * W2, 0.3, 0.3, NET], [-W2, y, 0, 0.3, 0.3, 2 * D2, NET], [W2, y, 0, 0.3, 0.3, 2 * D2, NET]);
+    for (let z = -D2 + 3.5; z < D2; z += 3.5) out.push([-W2, 0, z, 0.3, H - 2, 0.3, NET], [W2, 0, z, 0.3, H - 2, 0.3, NET], [0, H - 1.5, z, 2 * W2, 0.3, 0.3, NET]);
+    return out;
+  },
+  hoop: () => {
+    // A basketball hoop on a pole, with a ball resting by its foot. The hoop faces +z.
+    const ORANGE = '#FF7A1A', NET = '#F4F4F4', RY = 33, RZ = 6.5;
+    const out = [
+      [0, 0, -5, 11, 3, 9, '#3A3F4B'], [0, 3, -5, 9, 1, 7, '#4A5160'],
+      [0, 4, -5, 2.6, 34, 2.6, '#7A8494'],
+      [0, 35, -3, 2, 2, 5, '#7A8494'],
+      [0, 29, -0.5, 22, 15, 1.2, WHITE],
+      [0, 29, 0.2, 22, 0.8, 0.4, '#3FA9F5'], [0, 43.2, 0.2, 22, 0.8, 0.4, '#3FA9F5'],
+      [-10.6, 29, 0.2, 0.8, 15, 0.4, '#3FA9F5'], [10.6, 29, 0.2, 0.8, 15, 0.4, '#3FA9F5'],
+      [0, 33, 0.3, 8, 0.8, 0.4, '#E8473C'], [0, 39, 0.3, 8, 0.8, 0.4, '#E8473C'],
+      [-3.6, 33, 0.3, 0.8, 6.8, 0.4, '#E8473C'], [3.6, 33, 0.3, 0.8, 6.8, 0.4, '#E8473C'],
+      [0, RY - 0.5, 1.4, 2, 1.2, 1.6, ORANGE],
+      [0, RY, RZ - 4, 8, 0.8, 0.8, ORANGE], [0, RY, RZ + 4, 8, 0.8, 0.8, ORANGE],
+      [-4, RY, RZ, 0.8, 0.8, 8, ORANGE], [4, RY, RZ, 0.8, 0.8, 8, ORANGE],
+    ];
+    // The net: thin strings that get narrower towards the bottom.
+    for (let k = 0; k < 3; k++) {
+      const y = RY - 2 - k * 2, h = 2, r = 3.6 - k * 0.6;
+      for (const t of [-r, 0, r]) out.push([t, y, RZ - r, 0.3, h, 0.3, NET], [t, y, RZ + r, 0.3, h, 0.3, NET], [-r, y, RZ + t, 0.3, h, 0.3, NET], [r, y, RZ + t, 0.3, h, 0.3, NET]);
+      out.push([0, y, RZ - r, 2 * r, 0.3, 0.3, NET], [0, y, RZ + r, 2 * r, 0.3, 0.3, NET], [-r, y, RZ, 0.3, 0.3, 2 * r, NET], [r, y, RZ, 0.3, 0.3, 2 * r, NET]);
+    }
+    // A basketball on the floor.
+    out.push([8, 0, 3, 6, 6, 6, '#F08C3A'], [8, 2.75, 3, 6.2, 0.5, 6.2, INK], [8, 0, 3, 0.5, 6.1, 6.2, INK], [8, 0, 3, 6.2, 6.1, 0.5, INK]);
+    return out;
+  },
   fountain: () => [
     ...ring(0, 0, 0, 16, 2, '#A9B1BC'),
     ...ring(0, 2, 0, 16, 3, '#C0C7D1'),
