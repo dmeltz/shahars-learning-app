@@ -86,6 +86,8 @@ val SHOP = listOf(
     ShopItem("bee", "🐝", "דבורה", "bee", 100, 32, wall = true, room = 4),
     ShopItem("bunny", "🐇", "ארנב", "rabbit", 500, 48, wall = false, room = 4),
     ShopItem("fountain", "⛲", "מזרקה", "fountain", 700, 64, wall = false, room = 4),
+    ShopItem("goal", "🥅", "שער כדורגל", "soccer goal", 450, 64, wall = false, room = 4),
+    ShopItem("hoop", "🏀", "סל כדורסל", "basketball hoop", 450, 72, wall = false, room = 4),
 )
 
 val WALLS = listOf(
