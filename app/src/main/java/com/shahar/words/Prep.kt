@@ -261,6 +261,7 @@ fun PrepRoundScreen(area: PrepArea, onExit: () -> Unit, onHouse: () -> Unit) {
                 fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp),
             )
             val item = round[index]
+            Report.question = "prep ${area.title}: $item"
             key(index, round) {
                 val buddy = remember { randomBuddy() }
                 CompositionLocalProvider(LocalBuddy provides buddy) {

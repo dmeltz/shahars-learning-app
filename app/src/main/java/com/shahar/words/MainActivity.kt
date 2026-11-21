@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
         Speaker.init(this)
         Reminder.schedule(this)
         WordsWidget.updateAll(this)
+        Report.flush(this)
         startPractice = intent?.getBooleanExtra(EXTRA_PRACTICE, false) == true
         setContent {
             CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
@@ -125,6 +126,10 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
         if (Build.VERSION.SDK_INT >= 33) permission.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
+    if (Report.screen != screen.name) {
+        Report.screen = screen.name
+        Report.question = ""
+    }
     Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
         when (screen) {
             Screen.Home -> HomeScreen { screen = it }
@@ -138,6 +143,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             Screen.Phonics -> PhonicsScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
             Screen.Prep -> PrepScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
         }
+        if (Store.profile != null) ReportButton(Modifier.align(Alignment.BottomEnd).padding(10.dp))
     }
 }
 
@@ -320,6 +326,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         UpdateSection()
+        Spacer(Modifier.height(10.dp))
+        ReportSettings()
+        Spacer(Modifier.height(60.dp))
     }
 }
 

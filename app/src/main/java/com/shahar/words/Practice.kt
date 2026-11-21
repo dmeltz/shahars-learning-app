@@ -99,6 +99,7 @@ fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
                 fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp),
             )
             val q = round[index]
+            Report.question = "practice: $q"
             key(index, round) {
                 QuestionView(q) { ok, pts ->
                     Store.recordAnswer(q.word, ok, pts)

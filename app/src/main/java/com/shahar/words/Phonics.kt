@@ -368,6 +368,7 @@ fun PhonicsPractice(s: PStage, onHouse: () -> Unit, onExit: () -> Unit) {
         Text("שאלה ${index + 1} מתוך ${round.size}   ·   הרווחת ⭐ $earned",
             fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp))
         val q = round[index]
+        Report.question = "phonics ${s.title}: $q"
         key(index, round) {
             PhonicsQuestion(s, q) { ok ->
                 Store.recordPhonics(pKey(s, q.item), ok, 10)
