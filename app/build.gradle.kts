@@ -16,6 +16,8 @@ android {
         targetSdk = 35
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
+        // Optional key for uploading problem reports. Empty unless the REPORT_TOKEN secret is set in GitHub.
+        buildConfigField("String", "REPORT_TOKEN", "\"${System.getenv("REPORT_TOKEN") ?: ""}\"")
     }
 
     // A fixed key, so every new APK installs over the old one and keeps Shahar's points.
@@ -47,6 +49,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     lint {
         checkReleaseBuilds = false
