@@ -15,8 +15,19 @@
 </style>
 </head>
 <body>
+<div id="msg" style="position:fixed;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;padding:20px;color:#3A2A4D;font-size:16px;font-weight:bold;direction:rtl">טוען את הבית... 🏠</div>
 <div id="overlay"></div>
 <div id="buttons"></div>
+<script>
+  // If anything goes wrong, show it on screen and tell the app, so it is easy to find.
+  function houseError(m) {
+    var el = document.getElementById('msg');
+    el.style.display = 'flex';
+    el.textContent = 'הבית לא נטען 😕 ' + m;
+    try { window.Android && Android.onError(String(m)); } catch (e) {}
+  }
+  window.onerror = function (m, src, line) { houseError(m + ' (' + line + ')'); };
+</script>
 <script src="house.js"></script>
 </body>
 </html>
