@@ -1,6 +1,6 @@
 // Walking in the house: where a friend may stand, and the way from one spot to another.
 // Friends pass only through doors, and never through walls, furniture, items or other friends.
-import { ROOMS, HOUSE, DOORS, SURFACES, DOOR_W, WALL_T, roomAt } from './world.js';
+import { ROOMS, HOUSE, DOORS, DOOR_W, WALL_T, roomAt } from './world.js';
 
 export const BODY = 0.3; // a friend's radius, in floor tiles
 const CELL = 0.25;
@@ -22,8 +22,6 @@ ROOMS.forEach((r, i) => {
   }
 });
 
-/** Built-in furniture, as boxes on the floor. */
-const FURNITURE = SURFACES.map((s) => ({ x0: s.x0, x1: s.x1, z0: s.z0, z1: s.z1 }));
 
 function hitsWall(x, z, r) {
   if (x < HOUSE.x0 + r + WALL_T || x > HOUSE.x1 - r - WALL_T || z < HOUSE.z0 + r + WALL_T || z > HOUSE.z1 - r - WALL_T) return true;
@@ -47,7 +45,7 @@ function inBox(x, z, b, r) {
  * other friends. A spot is free when a friend standing there touches none of them.
  */
 export function makeBlocker(boxes, others) {
-  const all = FURNITURE.concat(boxes);
+  const all = boxes; // furniture and items (the house passes them in)
   const r = BODY;
   const withFriends = (x, z) => {
     if (hitsWall(x, z, r)) return true;
