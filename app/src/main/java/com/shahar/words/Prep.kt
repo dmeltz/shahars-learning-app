@@ -355,8 +355,12 @@ fun PassageView(p: Passage) {
 
 @Composable
 fun OptionGrid(options: List<String>, answer: Int, chosen: Int, ltr: Boolean, onPick: (Int) -> Unit) {
+    // Two steps, so a slip of the finger doesn't count: tap an answer to mark it, then press "בדיקה".
+    var selected by remember(options) { mutableIntStateOf(-1) }
     val short = options.all { it.length <= 6 }
-    val cell: @Composable (Int, Modifier) -> Unit = { i, modifier -> OptionCell(options[i], i, answer, chosen, ltr, short, modifier) { onPick(i) } }
+    val cell: @Composable (Int, Modifier) -> Unit = { i, modifier ->
+        OptionCell(options[i], i, answer, chosen, selected, ltr, short, modifier) { selected = i }
+    }
     if (short) {
         options.indices.chunked(2).forEach { pair ->
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -366,12 +370,16 @@ fun OptionGrid(options: List<String>, answer: Int, chosen: Int, ltr: Boolean, on
     } else {
         options.indices.forEach { cell(it, Modifier.fillMaxWidth()) }
     }
+    if (chosen < 0) {
+        BigButton(if (selected < 0) "בוחרים תשובה ואז בודקים" else "בדיקה ✓", Green, enabled = selected >= 0) { onPick(selected) }
+    }
 }
 
 @Composable
-private fun OptionCell(text: String, i: Int, answer: Int, chosen: Int, ltr: Boolean, short: Boolean, modifier: Modifier, onClick: () -> Unit) {
+private fun OptionCell(text: String, i: Int, answer: Int, chosen: Int, selected: Int, ltr: Boolean, short: Boolean, modifier: Modifier, onClick: () -> Unit) {
+        val marked = chosen < 0 && i == selected
         val bg = when {
-            chosen < 0 -> Color.White
+            chosen < 0 -> if (marked) Color(0xFFE9E1FF) else Color.White
             i == answer -> Green
             i == chosen -> Red
             else -> Color.White
@@ -379,10 +387,10 @@ private fun OptionCell(text: String, i: Int, answer: Int, chosen: Int, ltr: Bool
         Text(
             if (ltr) text else isolateMath(text),
             fontSize = if (short) 26.sp else 20.sp, fontWeight = FontWeight.Bold,
-            color = if (bg == Color.White) Ink else Color.White, textAlign = TextAlign.Center,
+            color = if (bg == Color.White || marked) Ink else Color.White, textAlign = TextAlign.Center,
             style = if (ltr) TextStyle(textDirection = TextDirection.Ltr) else TextStyle.Default,
             modifier = modifier.clip(RoundedCornerShape(18.dp)).background(bg)
-                .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
+                .border(if (marked) 4.dp else 2.dp, if (marked) Purple else Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                 .clickable(enabled = chosen < 0, onClick = onClick)
                 .padding(vertical = 16.dp, horizontal = 12.dp),
         )
