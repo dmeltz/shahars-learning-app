@@ -12,6 +12,11 @@
   .bubble::after { content: ''; position: absolute; left: 50%; bottom: -8px; margin-left: -8px; border: 8px solid transparent; border-top-color: #fff; border-bottom: 0; }
   #buttons { position: fixed; left: 8px; bottom: 8px; display: flex; flex-direction: column; gap: 8px; }
   #buttons button { width: 46px; height: 46px; border-radius: 14px; border: 0; background: rgba(255,255,255,.88); font-size: 22px; box-shadow: 0 2px 5px rgba(0,0,0,.2); padding: 0; }
+  #joy { position: fixed; right: 14px; bottom: 14px; width: 128px; height: 128px; border-radius: 50%; display: none; touch-action: none;
+    background: radial-gradient(circle, rgba(255,255,255,.55) 0 55%, rgba(142,108,255,.35) 56% 100%); border: 3px solid rgba(255,255,255,.9); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+  #joy .knob { position: absolute; left: 50%; top: 50%; width: 56px; height: 56px; margin: -28px 0 0 -28px; border-radius: 50%; pointer-events: none;
+    background: radial-gradient(circle at 35% 35%, #FFE680, #FFB400); border: 3px solid #fff; box-shadow: 0 3px 6px rgba(0,0,0,.25); }
+  #joy .close { position: absolute; right: -6px; top: -6px; width: 32px; height: 32px; border-radius: 50%; border: 0; background: #fff; color: #3A2A4D; font-size: 15px; box-shadow: 0 2px 5px rgba(0,0,0,.25); padding: 0; }
 </style>
 </head>
 <body>

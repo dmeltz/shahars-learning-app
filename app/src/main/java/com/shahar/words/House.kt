@@ -135,8 +135,8 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         val status = news ?: if (elsewhere.isNotEmpty()) "👀 " + elsewhere.joinToString(" · ") { "${it.he} ב${ROOMS[roomOf(it)]}" } else null
         Text(
             status ?: Store.g(
-                "סובבי עם האצבע, צבטי כדי להתקרב. גררי חפצים, הקישי כדי לסובב, הקשה כפולה למחסן.",
-                "סובב עם האצבע, צבוט כדי להתקרב. גרור חפצים, הקש כדי לסובב, הקשה כפולה למחסן.",
+                "הקישי על חבר ואז על מקום כדי שילך לשם (או הזיזי עם הג'ויסטיק 🕹️). גררי חפצים, הקישי לסיבוב, הקשה כפולה למחסן.",
+                "הקש על חבר ואז על מקום כדי שילך לשם (או הזז עם הג'ויסטיק 🕹️). גרור חפצים, הקש לסיבוב, הקשה כפולה למחסן.",
             ),
             fontSize = 14.sp, color = if (news != null) Green else if (status != null) Purple else Ink, fontWeight = FontWeight.Bold,
             maxLines = 2, overflow = TextOverflow.Ellipsis,

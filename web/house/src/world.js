@@ -13,7 +13,9 @@ export const ROOMS = [
 export const HOUSE = { x0: 0, z0: 0, x1: 24, z1: 16 };
 export const WALL_H = 3;
 const T = 0.16; // wall thickness (each room has its own wall layer)
-const DOOR_W = 1.7, DOOR_H = 2.3;
+export const DOOR_W = 1.7;
+const DOOR_H = 2.3;
+export const WALL_T = 0.16;
 
 /** Doors between rooms: on the line x=c or z=c, at position p along the wall. */
 export const DOORS = [

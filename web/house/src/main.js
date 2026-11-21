@@ -3,6 +3,7 @@ import { boxesGroup, boxesBounds, hashStr, rng } from './voxel.js';
 import { ITEM_MODELS, ITEM_META } from './items.js';
 import { makeCharacter, pose, CHAR_IDS } from './chars.js';
 import { ROOMS, HOUSE, DOORS, buildWorld, updateWalls, roomAt, roomCenter, surfaceAt, snapToWall, wallOf } from './world.js';
+import { makeBlocker, findPath, BODY } from './nav.js';
 
 const params = new URLSearchParams(location.search);
 const thumb = params.get('thumb');
@@ -331,15 +332,26 @@ function startHouse() {
         const start = b.main ? roomCenter(b.room).add(new THREE.Vector3(0.6, 0, 1.2)) : randomSpotIn(b.room, rng(hashStr(b.id)));
         holder.position.copy(start);
         holder.rotation.y = 0.3;
-        c = { ...ch, holder, room: b.room, path: [], idle: 1 + Math.random() * 3, talk: null, talkT: 0, awake: false, cheerT: 0, phase: Math.random() * 10 };
+        c = { id: b.id, ...ch, holder, room: b.room, path: [], idle: 1 + Math.random() * 3, talk: null, talkT: 0, awake: false, cheerT: 0, phase: Math.random() * 10 };
         chars.set(b.id, c);
+        // A friend that starts on top of something steps aside.
+        const free = freeSpotNear(c, start.x, start.z);
+        if (free) holder.position.set(free.x, 0, free.z);
       }
       c.main = b.main;
       c.index = i;
       if (c.room !== b.room) {
+        // The app moved this friend to another room (the first friend follows the room you look at).
         c.room = b.room;
-        const to = b.main ? roomCenter(b.room).add(new THREE.Vector3(0.6, 0, 1.2)) : randomSpotIn(b.room);
-        c.path = pathTo(c.holder.position, b.room, to);
+        const here = roomAt(c.holder.position.x, c.holder.position.z);
+        // A friend the kid just walked somewhere (or is walking now) stays put.
+        const busy = !b.main && (selected === c.id || c.stayT > 0);
+        if (here !== b.room && !busy) {
+          const to = b.main ? roomCenter(b.room).add(new THREE.Vector3(0.6, 0, 1.2)) : randomSpotIn(b.room);
+          const way = planWay(c, to.x, to.z);
+          c.path = way || pathTo(c.holder.position, b.room, to);
+          c.goal = null;
+        }
       }
     });
     for (const [id, c] of chars) {
@@ -351,13 +363,63 @@ function startHouse() {
     }
   }
 
-  function say(id, text) {
+  function say(id, text, cheer = true) {
     const c = chars.get(id);
     if (!c) return;
     c.awake = true;
     c.talk = text;
     c.talkT = 3.2;
-    c.cheerT = 1.6;
+    c.cheerT = cheer ? 1.6 : 0;
+  }
+
+  // ---------- Walking: only through doors, never through furniture or other friends ----------
+  function blockerFor(c) {
+    const boxes = [];
+    for (const rec of items.values()) {
+      const meta = ITEM_META[rec.data.id] || {};
+      if (rec.wall || meta.wall || meta.fly) continue;
+      if (meta.small && rec.baseY > 0) continue; // stands on a table, which is in the way anyway
+      const { hx, hz } = itemHalf(rec.data.id, rec.data.rot || 0);
+      boxes.push({ x0: rec.x - hx, x1: rec.x + hx, z0: rec.z - hz, z1: rec.z + hz });
+    }
+    const others = [];
+    for (const o of chars.values()) if (o !== c) others.push({ x: o.holder.position.x, z: o.holder.position.z });
+    return makeBlocker(boxes, others);
+  }
+  function toPoints(way) { return way.map((p) => new THREE.Vector3(p.x, 0, p.z)); }
+  function planWay(c, x, z) {
+    const way = findPath(blockerFor(c), c.holder.position.x, c.holder.position.z, x, z);
+    return way ? toPoints(way) : null;
+  }
+  function freeSpotNear(c, x, z) {
+    const b = blockerFor(c);
+    if (!b.blocked(x, z)) return null;
+    for (let r = 0.25; r < 3; r += 0.25) {
+      for (let a = 0; a < 16; a++) {
+        const px = x + Math.cos((a / 16) * Math.PI * 2) * r, pz = z + Math.sin((a / 16) * Math.PI * 2) * r;
+        if (roomAt(px, pz) === roomAt(x, z) && !b.blocked(px, pz)) return { x: px, z: pz };
+      }
+    }
+    return null;
+  }
+  const OH_OH = ['או-או! 😮', 'או-או... אין לי דרך לשם', 'או-או! משהו חוסם לי את הדרך'];
+  function ohOh(c) {
+    c.path = [];
+    c.goal = null;
+    say(c.id, OH_OH[Math.floor(Math.random() * OH_OH.length)], false);
+    c.shakeT = 0.6;
+  }
+  /** Send a friend to a spot the kid tapped. */
+  function sendTo(c, x, z) {
+    c.awake = true;
+    const way = planWay(c, x, z);
+    if (!way) { ohOh(c); return false; }
+    c.path = way;
+    c.goal = way[way.length - 1].clone();
+    c.waitT = 0;
+    c.stayT = 25; // stays there for a while before wandering again
+    showMarker(c.goal);
+    return true;
   }
 
   // ---------- Speech bubbles ----------
@@ -450,7 +512,7 @@ function startHouse() {
       if (Math.hypot(e.clientX - gesture.x0, e.clientY - gesture.y0) < 10) return;
       gesture.moved = true;
       const h = gesture.hit;
-      const draggable = h && (h.kind === 'item' || (h.kind === 'char' && chars.get(h.id) && chars.get(h.id).main));
+      const draggable = h && h.kind === 'item' && !selected;
       if (draggable) startDrag(h);
       else gesture.type = 'turn';
     }
@@ -488,6 +550,21 @@ function startHouse() {
   }
 
   function onTap(hit, x, y) {
+    if (hit && hit.kind === 'char') {
+      if (selected === hit.id) { select(null); return; }
+      select(hit.id);
+      bridge.onTapBuddy(hit.id);
+      return;
+    }
+    if (selected) {
+      // A friend is chosen: the tap says where to go.
+      const c = chars.get(selected);
+      const p = hit ? hit.point.clone().setY(0) : floorPoint(x, y);
+      if (!c || !p) return;
+      if (p.x < HOUSE.x0 || p.x > HOUSE.x1 || p.z < HOUSE.z0 || p.z > HOUSE.z1) { select(null); return; }
+      sendTo(c, p.x, p.z);
+      return;
+    }
     if (!hit) {
       // Tap on a room's floor to look at that room.
       const p = floorPoint(x, y);
@@ -502,10 +579,6 @@ function startHouse() {
         }
         lastTap = { id: 'floor' + r, t: now };
       }
-      return;
-    }
-    if (hit.kind === 'char') {
-      bridge.onTapBuddy(hit.id);
       return;
     }
     const now = performance.now();
@@ -531,17 +604,10 @@ function startHouse() {
 
   function startDrag(h) {
     gesture.type = 'drag';
-    if (h.kind === 'item') {
-      const rec = items.get(h.id);
-      if (!rec) { gesture.type = 'turn'; return; }
-      const p = floorPoint(gesture.x0, gesture.y0) || new THREE.Vector3(rec.x, 0, rec.z);
-      dragging = { kind: 'item', rec, dx: rec.x - p.x, dz: rec.z - p.z };
-    } else {
-      const c = chars.get(h.id);
-      const p = floorPoint(gesture.x0, gesture.y0) || c.holder.position.clone();
-      c.path = [];
-      dragging = { kind: 'char', c, dx: c.holder.position.x - p.x, dz: c.holder.position.z - p.z };
-    }
+    const rec = items.get(h.id);
+    if (!rec) { gesture.type = 'turn'; return; }
+    const p = floorPoint(gesture.x0, gesture.y0) || new THREE.Vector3(rec.x, 0, rec.z);
+    dragging = { kind: 'item', rec, dx: rec.x - p.x, dz: rec.z - p.z };
   }
 
   function moveDrag(x, y) {
@@ -550,37 +616,116 @@ function startHouse() {
     if (!p) return;
     const nx = Math.min(HOUSE.x1 - 0.3, Math.max(HOUSE.x0 + 0.3, p.x + dragging.dx));
     const nz = Math.min(HOUSE.z1 - 0.3, Math.max(HOUSE.z0 + 0.3, p.z + dragging.dz));
-    if (dragging.kind === 'item') {
-      const rec = dragging.rec;
-      rec.data = { ...rec.data, gx: nx, gz: nz };
-      layoutItem(rec);
-      rec.obj.position.y += 0.25;
-    } else {
-      const c = dragging.c;
-      const r = roomAt(nx, nz);
-      if (r >= 0) {
-        const R = ROOMS[r];
-        c.holder.position.set(Math.min(R.x1 - 0.4, Math.max(R.x0 + 0.4, nx)), 0, Math.min(R.z1 - 0.4, Math.max(R.z0 + 0.4, nz)));
-      }
-      c.lifted = true;
-    }
+    const rec = dragging.rec;
+    rec.data = { ...rec.data, gx: nx, gz: nz };
+    layoutItem(rec);
+    rec.obj.position.y += 0.25;
   }
 
   function endDrag() {
     if (!dragging) return;
-    if (dragging.kind === 'item') {
-      const rec = dragging.rec;
-      layoutItem(rec);
-      report(rec);
-    } else {
-      dragging.c.lifted = false;
-    }
+    const rec = dragging.rec;
+    layoutItem(rec);
+    report(rec);
     dragging = null;
   }
 
   function report(rec) {
     rec.data = { ...rec.data, gx: rec.x, gz: rec.z, room: rec.room };
     bridge.onMoved(rec.data.id, rec.x, rec.z, rec.data.rot || 0, rec.room);
+  }
+
+  // ---------- Choosing a friend: a ring under its feet, and a joystick to walk it ----------
+  let selected = null;
+  const ringMat = new THREE.MeshBasicMaterial({ color: '#FFD43B', transparent: true, opacity: 0.95, depthWrite: false });
+  const ring = new THREE.Mesh(new THREE.RingGeometry(0.42, 0.56, 32), ringMat);
+  ring.rotation.x = -Math.PI / 2;
+  ring.visible = false;
+  scene.add(ring);
+  const markMat = new THREE.MeshBasicMaterial({ color: '#FF5C9A', transparent: true, opacity: 0, depthWrite: false });
+  const marker = new THREE.Mesh(new THREE.RingGeometry(0.16, 0.3, 24), markMat);
+  marker.rotation.x = -Math.PI / 2;
+  scene.add(marker);
+  let markT = 0;
+  function showMarker(p) { marker.position.set(p.x, 0.04, p.z); markT = 1.4; }
+
+  const joy = document.createElement('div');
+  joy.id = 'joy';
+  joy.innerHTML = '<div class="knob"></div><button class="close" title="close">✖</button>';
+  document.body.appendChild(joy);
+  const knob = joy.querySelector('.knob');
+  const stick = { id: null, x: 0, y: 0, cx: 0, cy: 0 };
+  const JOY_R = 52;
+  function setKnob() { knob.style.transform = `translate(${stick.x * JOY_R}px, ${stick.y * JOY_R}px)`; }
+  joy.addEventListener('pointerdown', (e) => {
+    if (e.target.classList.contains('close')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    joy.setPointerCapture(e.pointerId);
+    const r = joy.getBoundingClientRect();
+    stick.id = e.pointerId;
+    stick.cx = r.left + r.width / 2;
+    stick.cy = r.top + r.height / 2;
+    moveStick(e);
+  });
+  function moveStick(e) {
+    let dx = (e.clientX - stick.cx) / JOY_R, dy = (e.clientY - stick.cy) / JOY_R;
+    const m = Math.hypot(dx, dy);
+    if (m > 1) { dx /= m; dy /= m; }
+    stick.x = dx; stick.y = dy;
+    setKnob();
+  }
+  joy.addEventListener('pointermove', (e) => { if (e.pointerId === stick.id) moveStick(e); });
+  const stickUp = (e) => { if (e.pointerId !== stick.id) return; stick.id = null; stick.x = stick.y = 0; setKnob(); };
+  joy.addEventListener('pointerup', stickUp);
+  joy.addEventListener('pointercancel', stickUp);
+  joy.querySelector('.close').addEventListener('click', (e) => { e.stopPropagation(); select(null); });
+
+  function select(id) {
+    selected = id && chars.has(id) ? id : null;
+    ring.visible = !!selected;
+    joy.style.display = selected ? 'block' : 'none';
+    stick.id = null; stick.x = stick.y = 0; setKnob();
+  }
+  select(null);
+
+  /** One step of the joystick: slides along walls and furniture instead of going through them. */
+  function joyStep(c, dt) {
+    const m = Math.hypot(stick.x, stick.y);
+    if (m < 0.15) { c.joyWalk = 0; return; }
+    const right = new THREE.Vector3(Math.cos(cam.yaw), 0, -Math.sin(cam.yaw));
+    const fwd = new THREE.Vector3(-Math.sin(cam.yaw), 0, -Math.cos(cam.yaw));
+    const dir = right.multiplyScalar(stick.x).addScaledVector(fwd, -stick.y);
+    const speed = 3.4 * Math.min(1, m);
+    const p = c.holder.position;
+    const b = blockerFor(c);
+    const stuck = b.blocked(p.x, p.z);
+    const ok = (x, z) => !b.blocked(x, z) || (stuck && !b.blockedStatic(x, z) && nearestFriend(b, x, z) > nearestFriend(b, p.x, p.z));
+    const sx = dir.x * speed * dt / Math.max(m, 1e-6) * Math.min(1, m), sz = dir.z * speed * dt / Math.max(m, 1e-6) * Math.min(1, m);
+    if (ok(p.x + sx, p.z + sz)) { p.x += sx; p.z += sz; }
+    else if (ok(p.x + sx, p.z)) p.x += sx;
+    else if (ok(p.x, p.z + sz)) p.z += sz;
+    c.path = [];
+    c.goal = null;
+    c.stayT = 25;
+    c.awake = true;
+    turnTo(c, Math.atan2(dir.x, dir.z), dt);
+    c.joyWalk = 1;
+    // The camera follows the friend you walk.
+    goal.target.set(p.x, 0.6, p.z);
+    overview = false;
+    const r = roomAt(p.x, p.z);
+    if (r >= 0) focusRoom = r;
+  }
+  function nearestFriend(b, x, z) {
+    let d = Infinity;
+    for (const o of b.others) d = Math.min(d, Math.hypot(o.x - x, o.z - z));
+    return d;
+  }
+  function turnTo(c, want, dt) {
+    let diff = want - c.holder.rotation.y;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    c.holder.rotation.y += diff * Math.min(1, dt * 10);
   }
 
   // ---------- Buttons on the view ----------
@@ -638,32 +783,63 @@ function startHouse() {
     }
 
     let sleepShown = false;
+    if (selected && !chars.has(selected)) select(null);
     for (const c of chars.values()) {
       const asleep = asleepAll && !c.awake;
       let walking = 0;
-      if (!c.lifted && c.path.length) {
+      if (c.stayT > 0) c.stayT -= dt;
+      if (selected === c.id && stick.id != null) {
+        joyStep(c, dt);
+        walking = c.joyWalk;
+      } else if (c.path.length) {
         const tgt = c.path[0];
         const d = new THREE.Vector3().subVectors(tgt, c.holder.position).setY(0);
-        const speed = c.main ? 3.2 : 1.6;
+        const speed = c.main || c.goal ? 3.2 : 1.6;
         const step = speed * dt;
-        if (d.length() <= step) {
+        // Another friend stepped into the way?
+        const nx = c.holder.position.x + (d.length() > 0 ? (d.x / d.length()) * Math.min(step, d.length()) : 0);
+        const nz = c.holder.position.z + (d.length() > 0 ? (d.z / d.length()) * Math.min(step, d.length()) : 0);
+        let bump = false;
+        for (const o of chars.values()) {
+          if (o === c) continue;
+          const now = Math.hypot(o.holder.position.x - c.holder.position.x, o.holder.position.z - c.holder.position.z);
+          const next = Math.hypot(o.holder.position.x - nx, o.holder.position.z - nz);
+          if (next < BODY * 2 && next < now) { bump = true; break; }
+        }
+        if (bump) {
+          if (c.goal) {
+            // Wait a moment, then look for another way around.
+            c.waitT = (c.waitT || 0) + dt;
+            if (c.waitT > 0.8) {
+              c.waitT = 0;
+              const way = planWay(c, c.goal.x, c.goal.z);
+              if (way) c.path = way;
+              else ohOh(c);
+            }
+          } else {
+            c.path = [];
+            c.idle = 1 + Math.random() * 2;
+          }
+        } else if (d.length() <= step) {
           c.holder.position.copy(tgt);
           c.path.shift();
+          walking = 1;
+          if (!c.path.length) c.goal = null;
         } else {
           d.normalize();
           c.holder.position.addScaledVector(d, step);
-          const want = Math.atan2(d.x, d.z);
-          let diff = want - c.holder.rotation.y;
-          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-          c.holder.rotation.y += diff * Math.min(1, dt * 10);
+          turnTo(c, Math.atan2(d.x, d.z), dt);
+          walking = 1;
         }
-        walking = 1;
-      } else if (!c.lifted && !asleep) {
+      } else if (!asleep) {
         c.idle -= dt;
         if (c.idle <= 0) {
           c.idle = 3 + Math.random() * 5;
-          if (!c.main) c.path = [randomSpotIn(c.room)];
-          else {
+          if (!c.main && !(c.stayT > 0) && selected !== c.id) {
+            const here = roomAt(c.holder.position.x, c.holder.position.z);
+            const to = randomSpotIn(here >= 0 ? here : c.room);
+            c.path = planWay(c, to.x, to.z) || [];
+          } else {
             // The first friend turns to look at you.
             c.lookAtCam = true;
           }
@@ -678,10 +854,18 @@ function startHouse() {
       }
       if (c.talkT > 0) c.talkT -= dt;
       if (c.cheerT > 0) c.cheerT -= dt;
-      const cheer = c.lifted ? 1 : c.cheerT > 0 ? 1 : 0;
+      const cheer = c.cheerT > 0 ? 1 : 0;
       c.setMood(cheer ? 'cheer' : asleep ? 'sleepy' : 'happy');
       pose(c, t + c.phase, { walking, cheer, sleepy: asleep ? 1 : 0 });
-      if (c.lifted) c.root.position.y = 0.35;
+      // "Oh-oh": a little head shake.
+      if (c.shakeT > 0) {
+        c.shakeT -= dt;
+        c.root.rotation.y = Math.sin(c.shakeT * 30) * 0.25 * (c.shakeT / 0.6);
+      } else c.root.rotation.y = 0;
+      if (selected === c.id) {
+        ring.position.set(c.holder.position.x, 0.04, c.holder.position.z);
+        ring.scale.setScalar(1 + Math.sin(t * 5) * 0.08);
+      }
 
       // Speech bubble.
       let line = c.talkT > 0 ? c.talk : null;
@@ -693,6 +877,11 @@ function startHouse() {
       else if (c.bubble) c.bubble.style.display = 'none';
       c.asleep = asleep;
     }
+    if (markT > 0) {
+      markT -= dt;
+      markMat.opacity = Math.min(1, markT * 1.5);
+      marker.scale.setScalar(1 + (1.4 - markT) * 0.5);
+    } else markMat.opacity = 0;
     // Floating Z's above sleeping friends.
     updateZz(dt);
     renderer.render(scene, camera);
@@ -778,6 +967,9 @@ function startHouse() {
         return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight };
       },
       item(id) { const r = items.get(id); return r && { x: r.x, z: r.z, rot: r.data.rot || 0, room: r.room }; },
+      screen(x, z) { const v = new THREE.Vector3(x, 0, z).project(camera); return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight }; },
+      char(id) { const c = chars.get(id); return c && { x: c.holder.position.x, z: c.holder.position.z, path: c.path.length, talk: c.talkT > 0 ? c.talk : null, selected: selected === id }; },
+      chars() { return [...chars.keys()]; },
     };
   }
   if (params.get('yaw')) { goal.yaw = cam.yaw = Number(params.get('yaw')); }
