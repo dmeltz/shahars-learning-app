@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { boxesGroup, boxesBounds, hashStr, rng } from './voxel.js';
 import { ITEM_MODELS, ITEM_META } from './items.js';
 import { makeCharacter, pose, CHAR_IDS } from './chars.js';
-import { ROOMS, HOUSE, DOORS, buildWorld, updateWalls, roomAt, roomCenter, surfaceAt, snapToWall, wallOf } from './world.js';
+import { ROOMS, HOUSE, HOUSE_CENTER, LAYOUT, DOORS, buildWorld, updateWalls, roomAt, roomCenter, surfaceAt, snapToWall, wallOf } from './world.js';
 import { makeBlocker, findPath, BODY } from './nav.js';
 
 const params = new URLSearchParams(location.search);
@@ -155,10 +155,13 @@ function startHouse() {
   scene.background = new THREE.Color('#BFE6FF');
   scene.fog = new THREE.Fog('#BFE6FF', 45, 90);
   const world = buildWorld(scene);
-  sun.position.set(20, 30, 22);
-  sun.target.position.set(12, 0, 8);
-  sun.shadow.camera.left = -18; sun.shadow.camera.right = 18;
-  sun.shadow.camera.top = 18; sun.shadow.camera.bottom = -18;
+  const HC = HOUSE_CENTER;
+  const span = Math.max(HOUSE.x1 - HOUSE.x0, HOUSE.z1 - HOUSE.z0);
+  const sh = Math.max(18, span * 0.75 + 2);
+  sun.position.set(HC.x + 8, 30, HC.z + 14);
+  sun.target.position.set(HC.x, 0, HC.z);
+  sun.shadow.camera.left = -sh; sun.shadow.camera.right = sh;
+  sun.shadow.camera.top = sh; sun.shadow.camera.bottom = -sh;
   sun.shadow.camera.near = 5; sun.shadow.camera.far = 80;
   sun.shadow.camera.updateProjectionMatrix();
 
@@ -561,7 +564,7 @@ function startHouse() {
       const c = chars.get(selected);
       const p = hit ? hit.point.clone().setY(0) : floorPoint(x, y);
       if (!c || !p) return;
-      if (p.x < HOUSE.x0 || p.x > HOUSE.x1 || p.z < HOUSE.z0 || p.z > HOUSE.z1) { select(null); return; }
+      if (roomAt(p.x, p.z) < 0) { select(null); return; }
       sendTo(c, p.x, p.z);
       return;
     }
@@ -737,13 +740,13 @@ function startHouse() {
     document.getElementById('buttons').appendChild(b);
   };
   btn('➕', 'zoom in', () => { goal.dist = Math.max(4, goal.dist * 0.75); });
-  btn('➖', 'zoom out', () => { goal.dist = Math.min(34, goal.dist * 1.33); });
+  btn('➖', 'zoom out', () => { goal.dist = Math.min(Math.max(34, span * 1.6), goal.dist * 1.33); });
   btn('🔄', 'turn', () => { goal.yaw += Math.PI / 2; });
   btn('🏠', 'whole house', () => {
     if (overview) { focusOn(focusRoom); return; }
     overview = true;
-    goal.target.set(12, 0.6, 8);
-    goal.dist = 27;
+    goal.target.set(HC.x, 0.6, HC.z);
+    goal.dist = Math.max(27, span * 1.15);
     goal.pitch = Math.max(goal.pitch, 0.9);
   });
 

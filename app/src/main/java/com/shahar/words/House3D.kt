@@ -82,6 +82,7 @@ fun House3D(modifier: Modifier, buddyRooms: Map<String, Int>) {
                 addJavascriptInterface(
                     HouseBridge(
                         main = main,
+                        layoutId = Store.layout,
                         onReady = { ready = true },
                         onError = { error = it },
                         say = { id, line ->
@@ -159,10 +160,15 @@ private fun houseJson(buddyRooms: Map<String, Int>, asleep: Boolean): String {
 /** What the house page can call. A plain public class, so the WebView can always reach its methods. */
 class HouseBridge(
     private val main: Handler,
+    private val layoutId: String,
     private val onReady: () -> Unit,
     private val onError: (String) -> Unit,
     private val say: (String, String) -> Unit,
 ) {
+    /** Which house template to draw. Asked by the page before it draws anything. */
+    @JavascriptInterface
+    fun layout(): String = layoutId
+
     @JavascriptInterface
     fun onReady() {
         main.post { onReady.invoke() }
