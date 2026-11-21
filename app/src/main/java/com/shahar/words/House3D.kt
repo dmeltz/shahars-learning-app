@@ -8,6 +8,7 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.util.Log
+import android.view.ViewGroup
 import android.webkit.ConsoleMessage
 import android.webkit.WebChromeClient
 import androidx.compose.foundation.background
@@ -55,6 +56,9 @@ fun House3D(modifier: Modifier, buddyRooms: Map<String, Int>) {
         modifier = Modifier.fillMaxSize(),
         factory = { ctx ->
             WebView(ctx).apply {
+                // Without this the WebView measures itself to its page height, which is 0 here,
+                // and the house window stays empty.
+                layoutParams = ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
                 settings.javaScriptEnabled = true
                 settings.allowFileAccess = true
                 settings.allowContentAccess = false
