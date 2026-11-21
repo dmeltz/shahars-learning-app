@@ -8,15 +8,29 @@ const params = new URLSearchParams(location.search);
 const thumb = params.get('thumb');
 
 // The app (Kotlin) listens on window.Android. In a plain browser we fake it, for testing.
-const bridge = window.Android || {
+const realBridge = window.Android;
+const fake = {
   onReady() {},
   onMoved(id, gx, gz, rot, room) { console.log('moved', id, gx, gz, rot, room); },
   onStore(id) { console.log('store', id); demoState.items = demoState.items.map((it) => (it.id === id ? { ...it, inRoom: false } : it)); house.setState(JSON.stringify(demoState)); },
   onTapBuddy(id) { house.say(id, 'שלום! אני ' + id); },
   onFocus(room) { console.log('focus', room); },
 };
+// Every call to the app is wrapped, so a problem there can never stop the house from drawing.
+const bridge = {};
+for (const k of Object.keys(fake)) {
+  bridge[k] = (...a) => {
+    try { return realBridge ? realBridge[k](...a) : fake[k](...a); } catch (e) { console.error('bridge ' + k + ': ' + e.message); }
+  };
+}
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !!thumb, preserveDrawingBuffer: !!thumb });
+let renderer;
+try {
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: !!thumb, preserveDrawingBuffer: !!thumb });
+} catch (e) {
+  // Very old phones: try once more without the extras.
+  renderer = new THREE.WebGLRenderer({ antialias: false });
+}
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -34,7 +48,8 @@ sun.shadow.normalBias = 0.02;
 scene.add(sun, sun.target);
 
 function resize() {
-  const w = window.innerWidth, h = window.innerHeight;
+  const w = window.innerWidth || document.documentElement.clientWidth || 1;
+  const h = window.innerHeight || document.documentElement.clientHeight || 1;
   renderer.setSize(w, h, false);
   renderer.domElement.style.width = w + 'px';
   renderer.domElement.style.height = h + 'px';
@@ -117,8 +132,18 @@ if (thumb) {
   renderer.render(scene, camera);
   window.__thumbDone = true;
 } else {
-  startHouse();
+  try {
+    startHouse();
+    const m = document.getElementById('msg');
+    if (m) m.style.display = 'none';
+  } catch (e) {
+    if (window.houseError) window.houseError(e && e.message ? e.message : String(e));
+    throw e;
+  }
 }
+// The page can start before the app has given it its size: check again for a moment.
+let sizeChecks = 0;
+const sizeTimer = setInterval(() => { resize(); if (++sizeChecks > 20) clearInterval(sizeTimer); }, 250);
 
 // ---------- The house ----------
 
@@ -581,7 +606,16 @@ function startHouse() {
   const clock = new THREE.Clock();
   let t = 0;
   const zz = [];
+  let tickErrors = 0;
   function tick() {
+    try {
+      frame();
+    } catch (e) {
+      if (++tickErrors === 1 && window.houseError) window.houseError(e && e.message ? e.message : String(e));
+    }
+    requestAnimationFrame(tick);
+  }
+  function frame() {
     const dt = Math.min(0.05, clock.getDelta());
     t += dt;
     // Smooth camera.
@@ -662,7 +696,6 @@ function startHouse() {
     // Floating Z's above sleeping friends.
     updateZz(dt);
     renderer.render(scene, camera);
-    requestAnimationFrame(tick);
   }
 
   const zMat = new THREE.SpriteMaterial({ map: zTexture(), transparent: true, depthWrite: false });
@@ -697,7 +730,15 @@ function startHouse() {
   let lastRoom = -1;
   house = {
     setState(json) {
-      const s = typeof json === 'string' ? JSON.parse(json) : json;
+      try { applyState(typeof json === 'string' ? JSON.parse(json) : json); } catch (e) {
+        if (window.houseError) window.houseError(e && e.message ? e.message : String(e));
+      }
+    },
+    say,
+    focus(room) { focusOn(room); },
+  };
+  function applyState(s) {
+    {
       if (s.walls) world.setWallColors(s.walls);
       asleepAll = !!s.asleep;
       sleepLine = s.sleepLine || '';
@@ -707,10 +748,8 @@ function startHouse() {
       }
       syncItems(s.items || []);
       syncChars(s.buddies || []);
-    },
-    say,
-    focus(room) { focusOn(room); },
-  };
+    }
+  }
   window.house = house;
 
   if (!window.Android) {
@@ -745,8 +784,8 @@ function startHouse() {
   if (params.get('pitch')) { goal.pitch = cam.pitch = Number(params.get('pitch')); }
   if (params.get('dist')) { goal.dist = cam.dist = Number(params.get('dist')); }
   placeCamera();
-  bridge.onReady();
   tick();
+  try { bridge.onReady(); } catch (e) { if (window.houseError) window.houseError('bridge: ' + e.message); }
 }
 
 function surfacesOf(room) {
