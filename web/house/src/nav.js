@@ -76,7 +76,7 @@ function grid(blocker) {
 
 /** Shortest distance from the start cell to every cell it can reach (8 directions, no cutting corners). */
 function distances(g, s) {
-  const dist = new Float32Array(NX * NZ).fill(Infinity);
+  const dist = new Float64Array(NX * NZ).fill(Infinity);
   const prev = new Int32Array(NX * NZ).fill(-1);
   const heap = [];
   const push = (n, d) => {
