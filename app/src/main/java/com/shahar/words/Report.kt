@@ -79,6 +79,8 @@ object Report {
     var question = ""
 
     var pending by mutableIntStateOf(0)
+    /** Result of the last upload try, shown in Settings so a parent can see why nothing arrives. */
+    var lastStatus by mutableStateOf("")
     private val scope = MainScope()
     private val lock = Mutex()
 
@@ -86,12 +88,18 @@ object Report {
 
     /** The key the parent pasted in Settings; else one built into the APK (empty by default). */
     fun token(ctx: Context): String =
-        prefs(ctx).getString("token", null)?.trim().takeUnless { it.isNullOrEmpty() } ?: BuildConfig.REPORT_TOKEN
+        clean(prefs(ctx).getString("token", null) ?: "").takeUnless { it.isEmpty() } ?: BuildConfig.REPORT_TOKEN
+
+    /**
+     * GitHub keys are only A-Z, a-z, 0-9 and "_". A key copied from WhatsApp in Hebrew often carries invisible
+     * direction marks (U+200E/U+200F) or spaces; those made the HTTP header invalid and every upload failed.
+     */
+    private fun clean(t: String) = t.filter { it in 'a'..'z' || it in 'A'..'Z' || it in '0'..'9' || it == '_' }
 
     fun hasToken(ctx: Context) = token(ctx).isNotEmpty()
 
     fun setToken(ctx: Context, t: String) {
-        prefs(ctx).edit().putString("token", t.trim()).apply()
+        prefs(ctx).edit().putString("token", clean(t)).apply()
         flush(ctx)
     }
 
@@ -161,7 +169,8 @@ object Report {
             val sent = send(app)
             val msg = when {
                 sent -> "תודה! הדיווח נשלח לאבא 💜"
-                else -> "תודה! הדיווח נשמר ויישלח כשיהיה אינטרנט 💜"
+                !hasToken(app) -> "תודה! הדיווח נשמר בטלפון. אבא צריך להגדיר מפתח שליחה בהגדרות 💜"
+                else -> "תודה! הדיווח נשמר בטלפון ויישלח אחר כך 💜"
             }
             Toast.makeText(app, msg, Toast.LENGTH_LONG).show()
         }
@@ -178,7 +187,12 @@ object Report {
     /** Uploads every waiting report. True when nothing is left waiting. */
     private suspend fun send(ctx: Context): Boolean = lock.withLock {
         val token = token(ctx)
-        if (token.isEmpty()) return@withLock false
+        if (token.isEmpty()) {
+            setStatus(ctx, "לא נשלח: אין מפתח שליחה")
+            return@withLock false
+        }
+        var error: String? = null
+        var sentAny = false
         withContext(Dispatchers.IO) {
             val dir = queue(ctx)
             val reports = dir.listFiles { f -> f.name.endsWith(".md") }?.sortedBy { it.name } ?: emptyList()
@@ -192,7 +206,9 @@ object Report {
                     }
                     put(token, "$DIR/$id.md", md.readBytes(), "Report $id")
                     md.delete()
+                    sentAny = true
                 } catch (e: Exception) {
+                    error = explain(e)
                     break
                 }
             }
@@ -201,14 +217,84 @@ object Report {
                 try {
                     put(token, Stats.remotePath(f), f.readBytes(), "Practice data ${f.name}")
                     f.delete()
+                    sentAny = true
                 } catch (e: Exception) {
+                    error = explain(e)
                     break
                 }
             }
         }
+        val time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd.MM HH:mm"))
+        when {
+            error != null -> setStatus(ctx, "שליחה נכשלה ($time): $error")
+            sentAny -> setStatus(ctx, "נשלח בהצלחה ✓ ($time)")
+        }
         refreshCount(ctx)
         pending == 0
     }
+
+    private fun setStatus(ctx: Context, s: String) {
+        lastStatus = s
+        prefs(ctx).edit().putString("status", s).apply()
+    }
+
+    fun loadStatus(ctx: Context) {
+        if (lastStatus.isEmpty()) lastStatus = prefs(ctx).getString("status", "") ?: ""
+    }
+
+    /** Turns an upload error into words a parent can act on. */
+    private fun explain(e: Exception): String {
+        val m = e.message ?: e.javaClass.simpleName
+        return when {
+            m.startsWith("HTTP 401") -> "המפתח לא תקין או שפג תוקפו (401). צריך ליצור מפתח חדש."
+            m.startsWith("HTTP 403") -> "למפתח אין הרשאת כתיבה (403). ב-GitHub צריך לתת לו Contents: Read and write. $m"
+            m.startsWith("HTTP 404") -> "המפתח לא רואה את הריפו my-practice-data (404). צריך לבחור אותו ב-Repository access של המפתח."
+            m.startsWith("HTTP") -> m
+            e is java.net.UnknownHostException -> "אין אינטרנט"
+            else -> "${e.javaClass.simpleName}: $m"
+        }
+    }
+
+    /** Settings "check key" button: asks GitHub what this key may do with the repo. */
+    fun checkKey(ctx: Context) {
+        val app = ctx.applicationContext
+        val token = token(app)
+        if (token.isEmpty()) { setStatus(app, "אין מפתח שליחה"); return }
+        lastStatus = "בודקים..."
+        scope.launch {
+            val res = withContext(Dispatchers.IO) {
+                try {
+                    val c = URL("https://api.github.com/repos/$REPO").openConnection() as HttpURLConnection
+                    c.connectTimeout = 15000
+                    c.readTimeout = 15000
+                    headers(c, token)
+                    try {
+                        val code = c.responseCode
+                        if (code !in 200..299) throw IOException("HTTP $code ${errorText(c)}")
+                        val perms = JSONObject(c.inputStream.bufferedReader().readText()).optJSONObject("permissions")
+                        if (perms != null && !perms.optBoolean("push", true)) "המפתח רואה את הריפו אבל בלי הרשאת כתיבה. צריך Contents: Read and write."
+                        else "המפתח תקין ורואה את my-practice-data ✓"
+                    } finally { c.disconnect() }
+                } catch (e: Exception) {
+                    "בדיקה נכשלה: " + explain(e)
+                }
+            }
+            setStatus(app, res)
+            if (res.endsWith("✓")) send(app)
+        }
+    }
+
+    private fun headers(c: HttpURLConnection, token: String) {
+        c.setRequestProperty("Authorization", "Bearer $token")
+        c.setRequestProperty("Accept", "application/vnd.github+json")
+        c.setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
+        c.setRequestProperty("User-Agent", "kids-learning-app")
+    }
+
+    private fun errorText(c: HttpURLConnection): String = try {
+        val body = c.errorStream?.bufferedReader()?.readText() ?: ""
+        JSONObject(body).optString("message", body).take(150)
+    } catch (e: Exception) { "" }
 
     /** Creates one file in the repo with the GitHub contents API. */
     private fun put(token: String, path: String, bytes: ByteArray, message: String) {
@@ -217,8 +303,7 @@ object Report {
         c.connectTimeout = 15000
         c.readTimeout = 30000
         c.doOutput = true
-        c.setRequestProperty("Authorization", "Bearer $token")
-        c.setRequestProperty("Accept", "application/vnd.github+json")
+        headers(c, token)
         c.setRequestProperty("Content-Type", "application/json")
         try {
             val body = JSONObject()
@@ -227,7 +312,7 @@ object Report {
             c.outputStream.use { it.write(body.toString().toByteArray()) }
             val code = c.responseCode
             // 422 = the file is already there (sent before, but the answer got lost). Treat as sent.
-            if (code !in 200..299 && code != 422) throw IOException("HTTP $code")
+            if (code !in 200..299 && code != 422) throw IOException("HTTP $code ${errorText(c)}")
         } finally {
             c.disconnect()
         }
@@ -327,7 +412,7 @@ fun ReportSettings() {
     var asking by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var key by remember { mutableStateOf("") }
-    LaunchedEffect(Unit) { Report.refreshCount(ctx) }
+    LaunchedEffect(Unit) { Report.refreshCount(ctx); Report.loadStatus(ctx) }
     Text("דיווחים על בעיות 🐞", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
     Text(
         "בכל מסך יש כפתור 🐞 קטן בפינה. הדיווח (צילום מסך + תיאור) נשמר ונשלח לתיקיית reports בריפו my-practice-data.",
@@ -337,6 +422,10 @@ fun ReportSettings() {
         if (Report.hasToken(ctx)) "מפתח שליחה: מוגדר ✓" else "מפתח שליחה: עוד לא הוגדר. הדיווחים נשמרים בטלפון עד שיוגדר.",
         fontSize = 15.sp, color = if (Report.hasToken(ctx)) Green else Orange,
     )
+    if (Report.lastStatus.isNotEmpty()) {
+        Text(Report.lastStatus, fontSize = 15.sp, color = if (Report.lastStatus.contains("✓")) Green else Red)
+    }
+    if (Report.hasToken(ctx)) TextButton(onClick = { Report.checkKey(ctx) }) { Text("בדיקת המפתח והחיבור 🔍", fontSize = 16.sp) }
     Text("גם נתוני התרגול (כל תשובה, נכון/לא, כמה זמן לקח) נשלחים לתיקיית stats באותו ריפו, כדי שאפשר יהיה לנתח ולהתאים את התרגול.", fontSize = 15.sp, color = Ink)
     val statsWaiting = remember(Report.pending) { Stats.waiting(ctx) }
     if (statsWaiting > 0) Text("סבבי תרגול שמחכים לשליחה: $statsWaiting", fontSize = 15.sp, color = Ink)
@@ -346,7 +435,7 @@ fun ReportSettings() {
     }
     if (editing) {
         OutlinedTextField(
-            value = key, onValueChange = { key = it.trim() }, singleLine = true,
+            value = key, onValueChange = { key = it }, singleLine = true,
             label = { Text("GitHub token") }, modifier = Modifier.fillMaxWidth(),
         )
         BigButton("שמירת המפתח", Purple) {
