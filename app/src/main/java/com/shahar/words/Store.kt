@@ -395,7 +395,7 @@ object Store {
      * Moves into another house template. Every item stays in its room, at the same spot
      * relative to the room (so a bed in a corner stays in that corner of the new room).
      */
-    fun setLayout(id: String) {
+    fun moveToLayout(id: String) {
         val from = Layouts.byId(appContext, layout)
         val to = Layouts.byId(appContext, id)
         if (from.id != to.id) {
@@ -418,7 +418,7 @@ object Store {
         if (points < l.price) return false
         points -= l.price
         boughtLayouts.add(l.id)
-        setLayout(l.id)
+        moveToLayout(l.id)
         return true
     }
 

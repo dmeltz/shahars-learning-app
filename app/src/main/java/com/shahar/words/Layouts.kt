@@ -124,7 +124,7 @@ fun LayoutCard(l: HouseLayout, onDone: () -> Unit) {
                 .background(if (current) Color.Transparent else if (owned) Purple else if (canBuy) Orange else Color(0xFFEDE7F6))
                 .clickable(enabled = !current) {
                     if (owned) {
-                        Store.setLayout(l.id)
+                        Store.moveToLayout(l.id)
                         onDone()
                     } else if (Store.buyLayout(l)) {
                         android.widget.Toast.makeText(ctx, "ברוכים הבאים ל${l.he}! 🎉", android.widget.Toast.LENGTH_SHORT).show()
