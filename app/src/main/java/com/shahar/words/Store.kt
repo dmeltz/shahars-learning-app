@@ -156,6 +156,9 @@ object Store {
      */
     var deviceLock by mutableStateOf<String?>(null)
 
+    /** Parent's device: anyone can pick a player, and the updater also offers test (pre-release) builds. */
+    var parentDevice by mutableStateOf(false)
+
     val isTomer: Boolean get() = profile == TOMER
     val name: String get() = if (isTomer) "תומר" else "שחר"
     val words: List<Word> get() = if (isTomer) TOMER_WORDS else WORDS
@@ -170,6 +173,7 @@ object Store {
         appContext = ctx.applicationContext
         meta = appContext.getSharedPreferences("profiles", Context.MODE_PRIVATE)
         deviceLock = meta.getString("deviceLock", null)?.takeIf { it == SHAHAR || it == TOMER }
+        parentDevice = deviceLock == null && meta.getBoolean("parentDevice", false)
         var cur = deviceLock ?: meta.getString("current", null)
         // Shahar's phone already has her data: keep going straight to her, no picker.
         if (cur == null && appContext.getSharedPreferences(SHAHAR, Context.MODE_PRIVATE).contains("points")) {
@@ -494,9 +498,14 @@ object Store {
 
     /** Parent sets whose device this is (null = shared). Switches to that kid; nobody's data changes. */
     @Synchronized
-    fun lockDevice(p: String?) {
-        meta.edit().putString("deviceLock", p).apply()
+    fun lockDevice(p: String?, parent: Boolean = false) {
+        val asParent = p == null && parent
+        meta.edit().putString("deviceLock", p).putBoolean("parentDevice", asParent).apply()
         deviceLock = p
+        if (parentDevice != asParent) {
+            parentDevice = asParent
+            Updater.reset()
+        }
         if (p != null && profile != p) choose(p) else WordsWidget.updateAll(appContext)
     }
 

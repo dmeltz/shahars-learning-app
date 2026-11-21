@@ -14,7 +14,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import org.json.JSONArray
 import java.io.File
 import java.io.IOException
 import java.net.HttpURLConnection
@@ -24,7 +24,7 @@ sealed class UpdateState {
     data object Idle : UpdateState()
     data object Checking : UpdateState()
     data object UpToDate : UpdateState()
-    data class Available(val build: Int, val url: String) : UpdateState()
+    data class Available(val build: Int, val url: String, val test: Boolean = false, val note: String = "") : UpdateState()
     data class Downloading(val percent: Int) : UpdateState()
     data object NeedsPermission : UpdateState()
     data object Installing : UpdateState()
@@ -34,6 +34,7 @@ sealed class UpdateState {
 /** Checks GitHub for a newer build and installs it. */
 object Updater {
     private const val LATEST_PAGE = "https://github.com/dmeltz/shahars-learning-app/releases/latest"
+    private const val RELEASES_API = "https://api.github.com/repos/dmeltz/shahars-learning-app/releases?per_page=30"
 
     var state by mutableStateOf<UpdateState>(UpdateState.Idle)
     var lastUrl = ""
@@ -76,14 +77,56 @@ object Updater {
         } finally { c.disconnect() }
     }
 
+    /** Forget the last answer (e.g. the parent switched the test channel on or off). */
+    fun reset() {
+        state = UpdateState.Idle
+        autoChecked = false
+    }
+
+    /**
+     * Parent's device only: the newest build of all, test builds (GitHub pre-releases) included.
+     * Uses the GitHub API (60 calls an hour), which is fine for one parent device.
+     */
+    private fun newestIncludingTests(): UpdateState.Available? {
+        val c = URL(RELEASES_API).openConnection() as HttpURLConnection
+        c.connectTimeout = 10000
+        c.readTimeout = 15000
+        c.setRequestProperty("Accept", "application/vnd.github+json")
+        try {
+            if (c.responseCode != 200) throw IOException("HTTP ${c.responseCode}")
+            val arr = JSONArray(c.inputStream.bufferedReader().readText())
+            var best: UpdateState.Available? = null
+            for (i in 0 until arr.length()) {
+                val r = arr.getJSONObject(i)
+                if (r.optBoolean("draft")) continue
+                val build = r.optString("tag_name").removePrefix("build-").toIntOrNull() ?: continue
+                if (best != null && build <= best.build) continue
+                val assets = r.optJSONArray("assets") ?: continue
+                var url: String? = null
+                for (j in 0 until assets.length()) {
+                    val a = assets.getJSONObject(j)
+                    if (a.optString("name") == "shahar-words.apk") url = a.optString("browser_download_url")
+                }
+                if (url.isNullOrEmpty()) continue
+                val pre = r.optBoolean("prerelease")
+                val note = if (pre) r.optString("body").lineSequence().firstOrNull { it.isNotBlank() }.orEmpty().take(200) else ""
+                best = UpdateState.Available(build, url, pre, note)
+            }
+            return best
+        } finally { c.disconnect() }
+    }
+
     suspend fun check(ctx: Context, quiet: Boolean = false) {
         if (!quiet) state = UpdateState.Checking
         state = try {
-            val build = withContext(Dispatchers.IO) { latestBuild() }
-            val url = "https://github.com/dmeltz/shahars-learning-app/releases/download/build-$build/shahar-words.apk"
+            val tests = if (Store.parentDevice) {
+                withContext(Dispatchers.IO) { runCatching { newestIncludingTests() }.getOrNull() }
+            } else null
+            val build = tests?.build ?: withContext(Dispatchers.IO) { latestBuild() }
+            val url = tests?.url ?: "https://github.com/dmeltz/shahars-learning-app/releases/download/build-$build/shahar-words.apk"
             if (build > currentBuild(ctx)) {
                 lastUrl = url
-                UpdateState.Available(build, url)
+                tests ?: UpdateState.Available(build, url)
             }
             else if (quiet) UpdateState.Idle else UpdateState.UpToDate
         } catch (e: Exception) {

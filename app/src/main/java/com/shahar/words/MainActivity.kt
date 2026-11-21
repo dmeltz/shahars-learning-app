@@ -353,7 +353,8 @@ fun UpdateSection() {
     val ctx = LocalContext.current
     val st = Updater.state
     Text("עדכון האפליקציה", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
-    Text("הגרסה שלך: ${Updater.currentBuild(ctx)}", fontSize = 16.sp, color = Ink)
+    Text("הגרסה שלך: ${Updater.currentBuild(ctx)}" + (if (BuildConfig.TEST_BUILD) " (גרסת ניסוי 🧪)" else ""), fontSize = 16.sp, color = Ink)
+    if (Store.parentDevice) Text("מכשיר של הורים: מוצעות גם גרסאות ניסוי.", fontSize = 14.sp, color = Ink)
     when (st) {
         is UpdateState.Idle, is UpdateState.UpToDate, is UpdateState.Failed -> {
             if (st is UpdateState.UpToDate) Text("יש לך את הגרסה הכי חדשה ✓", fontSize = 16.sp, color = Green)
@@ -362,7 +363,11 @@ fun UpdateSection() {
         }
         is UpdateState.Checking -> Text("בודקים אם יש גרסה חדשה...", fontSize = 16.sp, color = Ink)
         is UpdateState.Available -> {
-            Text("יש גרסה חדשה (${st.build})! 🎉", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Green)
+            Text(
+                if (st.test) "יש גרסת ניסוי חדשה (${st.build}) 🧪" else "יש גרסה חדשה (${st.build})! 🎉",
+                fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Green,
+            )
+            if (st.test && st.note.isNotBlank()) Text(st.note, fontSize = 14.sp, color = Ink)
             BigButton("הורדה והתקנה ⬇️", Green) { Updater.startInstall(ctx) }
         }
         is UpdateState.Downloading -> {
@@ -474,9 +479,10 @@ fun DeviceSettings() {
     var choosing by remember { mutableStateOf(false) }
     Text("הגדרת המכשיר (להורים) 🔒", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
     Text(
-        when (Store.deviceLock) {
-            SHAHAR -> "זה המכשיר של שחר: רק הכנה למבחן באנגלית. אי אפשר להחליף שחקן."
-            TOMER -> "זה המכשיר של תומר: רק הכנה למבחן המחוננים. אנגלית לא זמינה כרגע. אי אפשר להחליף שחקן."
+        when {
+            Store.deviceLock == SHAHAR -> "זה המכשיר של שחר: רק הכנה למבחן באנגלית. אי אפשר להחליף שחקן."
+            Store.deviceLock == TOMER -> "זה המכשיר של תומר: רק הכנה למבחן המחוננים. אנגלית לא זמינה כרגע. אי אפשר להחליף שחקן."
+            Store.parentDevice -> "מכשיר של הורים: אפשר להחליף בין שחר לתומר, ובדיקת העדכונים מציעה גם גרסאות ניסוי 🧪."
             else -> "מכשיר משותף: אפשר להחליף בין שחר לתומר."
         },
         fontSize = 16.sp, color = Ink,
@@ -495,15 +501,17 @@ fun DeviceSettings() {
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("הנקודות, הבית והחברים של כל ילד נשמרים בכל מקרה.", fontSize = 15.sp)
+                    data class Opt(val p: String?, val parent: Boolean, val label: String, val color: Color)
                     listOf(
-                        Triple(SHAHAR, "המכשיר של שחר 🌸\nרק אנגלית", Pink),
-                        Triple(TOMER, "המכשיר של תומר 🚀\nרק מבחן המחוננים", Blue),
-                        Triple(null, "מכשיר משותף\nאפשר להחליף שחקן", Color(0xFF9A8FB0)),
-                    ).forEach { (p, label, color) ->
+                        Opt(SHAHAR, false, "המכשיר של שחר 🌸\nרק אנגלית", Pink),
+                        Opt(TOMER, false, "המכשיר של תומר 🚀\nרק מבחן המחוננים", Blue),
+                        Opt(null, false, "מכשיר משותף\nאפשר להחליף שחקן", Color(0xFF9A8FB0)),
+                        Opt(null, true, "מכשיר של הורים 🧪\nמשותף + גרסאות ניסוי", Color(0xFF2E8B57)),
+                    ).forEach { (p, parent, label, color) ->
                         Button(
                             onClick = {
                                 choosing = false
-                                Store.lockDevice(p)
+                                Store.lockDevice(p, parent)
                                 Reminder.schedule(ctx)
                             },
                             modifier = Modifier.fillMaxWidth(),
@@ -511,7 +519,7 @@ fun DeviceSettings() {
                             colors = ButtonDefaults.buttonColors(containerColor = color),
                         ) {
                             Text(
-                                (if (Store.deviceLock == p) "✓ " else "") + label,
+                                (if (Store.deviceLock == p && Store.parentDevice == parent) "✓ " else "") + label,
                                 fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center,
                             )
                         }

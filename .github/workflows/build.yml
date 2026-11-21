@@ -31,7 +31,9 @@ jobs:
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: build-${{ github.run_number }}
-          name: Build ${{ github.run_number }}
+          name: ${{ github.ref_name == 'claude/project-thread-65ep8k' && format('Build {0}', github.run_number) || format('Test build {0} 🧪', github.run_number) }}
+          # The first line of the commit message is shown in the app on the parent's device as "what's in this test".
+          body: ${{ github.event.head_commit.message || github.ref_name }}
           target_commitish: ${{ github.sha }}
           files: shahar-words.apk
           # Only the main branch becomes "latest" (what the in-app updater offers). Other branches are test builds.
