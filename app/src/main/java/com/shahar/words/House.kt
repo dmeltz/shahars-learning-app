@@ -74,6 +74,17 @@ private val FloorLine = Color(0xFFD29E6C)
 
 @Composable
 fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
+    var picking by remember { mutableStateOf(false) }
+    if (!Store.layoutChosen || picking) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp)) {
+            LayoutPicker(
+                first = !Store.layoutChosen,
+                onDone = { picking = false },
+                onBack = if (Store.layoutChosen) ({ picking = false }) else onBack,
+            )
+        }
+        return
+    }
     Column(
         Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -127,10 +138,13 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
                 news = null
             }
         }
-        House3D(
-            Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp)).border(3.dp, Purple, RoundedCornerShape(24.dp)),
-            buddyRooms,
-        )
+        // A new house template means a new page: the house is drawn again in its new shape.
+        key(Store.layout) {
+            House3D(
+                Modifier.fillMaxWidth().weight(1f).clip(RoundedCornerShape(24.dp)).border(3.dp, Purple, RoundedCornerShape(24.dp)),
+                buddyRooms,
+            )
+        }
         val elsewhere = ownedBuddies().filter { roomOf(it) != Store.room }
         val status = news ?: if (elsewhere.isNotEmpty()) "👀 " + elsewhere.joinToString(" · ") { "${it.he} ב${ROOMS[roomOf(it)]}" } else null
         Text(
@@ -168,7 +182,10 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
         if (stored.isNotEmpty()) {
             Text(Store.g("הקישי על חפץ מהמחסן 📦 כדי להחזיר אותו ל", "הקש על חפץ מהמחסן 📦 כדי להחזיר אותו ל") + ROOMS[Store.room], fontSize = 13.sp, color = Ink)
         }
-        BigButton("לחנות 🛍️", Orange, onClick = onShop)
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            BigButton("לחנות 🛍️", Orange, Modifier.weight(1f), onClick = onShop)
+            BigButton("בית אחר 🏗️", Purple, Modifier.weight(1f), onClick = { picking = true })
+        }
     }
 }
 
@@ -235,6 +252,11 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                     }
                 }
             }
+            item(span = { GridItemSpan(maxLineSpan) }) {
+                Text("בתים חדשים 🏡", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink,
+                    modifier = Modifier.padding(top = 8.dp))
+            }
+            items(Layouts.all(ctx).filter { it.price > 0 }) { l -> LayoutCard(l, onDone = {}) }
         }
         Spacer(Modifier.height(8.dp))
         BigButton("לבית שלי 🏠", Purple, onClick = onHouse)

@@ -1,16 +1,28 @@
 import * as THREE from 'three';
 import { boxesGroup, rng } from './voxel.js';
 
+import LAYOUT_FILE from '../../../app/src/main/assets/house/layouts.json';
+
 // The house, in floor tiles (1 unit = 16 pixels). Rooms keep the app's numbering:
 // 0 bedroom, 1 dining room, 2 living room, 3 bathroom, 4 garden.
-export const ROOMS = [
-  { x0: 0, z0: 0, x1: 8, z1: 8 },
-  { x0: 0, z0: 8, x1: 8, z1: 16 },
-  { x0: 8, z0: 8, x1: 16, z1: 16 },
-  { x0: 8, z0: 0, x1: 16, z1: 8 },
-  { x0: 16, z0: 0, x1: 24, z1: 16, garden: true },
-];
-export const HOUSE = { x0: 0, z0: 0, x1: 24, z1: 16 };
+// The shape comes from the kid's house template (layouts.json). The app tells us which one
+// before anything is drawn; when it changes, the app loads the page again.
+export const LAYOUTS = LAYOUT_FILE.layouts;
+function chosenLayout() {
+  let id = null;
+  try { if (window.Android && window.Android.layout) id = window.Android.layout(); } catch (e) { /* plain browser */ }
+  if (!id) id = new URLSearchParams(location.search).get('layout');
+  return LAYOUTS.find((l) => l.id === id) || LAYOUTS[0];
+}
+export const LAYOUT = chosenLayout();
+export const ROOMS = LAYOUT.rooms;
+export const HOUSE = {
+  x0: Math.min(...ROOMS.map((r) => r.x0)),
+  z0: Math.min(...ROOMS.map((r) => r.z0)),
+  x1: Math.max(...ROOMS.map((r) => r.x1)),
+  z1: Math.max(...ROOMS.map((r) => r.z1)),
+};
+export const HOUSE_CENTER = { x: (HOUSE.x0 + HOUSE.x1) / 2, z: (HOUSE.z0 + HOUSE.z1) / 2 };
 export const WALL_H = 3;
 const T = 0.16; // wall thickness (each room has its own wall layer)
 export const DOOR_W = 1.7;
@@ -18,15 +30,25 @@ const DOOR_H = 2.3;
 export const WALL_T = 0.16;
 
 /** Doors between rooms: on the line x=c or z=c, at position p along the wall. */
-export const DOORS = [
-  { a: 0, b: 1, axis: 'z', c: 8, p: 4 },
-  { a: 0, b: 3, axis: 'x', c: 8, p: 4 },
-  { a: 3, b: 2, axis: 'z', c: 8, p: 12 },
-  { a: 1, b: 2, axis: 'x', c: 8, p: 12 },
-  { a: 2, b: 4, axis: 'x', c: 16, p: 12 },
-];
+export const DOORS = LAYOUT.doors;
 
-const WINDOWS = { '0N': 2.5, '1W': 12, '2S': [10, 14], '3N': 10.2 };
+const WINDOWS = LAYOUT.windows || {};
+
+const GARDEN = ROOMS.findIndex((r) => r.garden);
+
+/** Built-in furniture spots, worked out from each room's size so they fit every template. */
+function decorSpots() {
+  const c = (i) => ({ x: (ROOMS[i].x0 + ROOMS[i].x1) / 2, z: (ROOMS[i].z0 + ROOMS[i].z1) / 2 });
+  return {
+    night: { x: ROOMS[0].x1 - 0.85, z: ROOMS[0].z0 + 0.8 },
+    bedRug: { x: c(0).x, z: c(0).z + 0.6 },
+    table: { x: c(1).x, z: c(1).z + 0.2 },
+    livRug: { x: c(2).x, z: c(2).z + 0.6 },
+    coffee: { x: c(2).x, z: c(2).z + 1.05 },
+    sink: { x: ROOMS[3].x1 - 2.05, z: ROOMS[3].z0 + 0.75 },
+  };
+}
+const SPOT = decorSpots();
 
 export function roomAt(x, z) {
   for (let i = 0; i < ROOMS.length; i++) {
@@ -43,10 +65,10 @@ export function roomCenter(i) {
 
 /** Built-in furniture that small items can stand on: [x0, x1, z0, z1, top]. */
 export const SURFACES = [
-  { room: 0, x0: 6.6, x1: 7.7, z0: 0.3, z1: 1.3, y: 0.8 },
-  { room: 1, x0: 2.3, x1: 5.7, z0: 11.2, z1: 13.2, y: 0.95 },
-  { room: 2, x0: 11, x1: 13, z0: 12.5, z1: 13.6, y: 0.5 },
-  { room: 3, x0: 12.3, x1: 15.6, z0: 0.2, z1: 1.3, y: 1.0 },
+  { room: 0, x0: SPOT.night.x - 0.55, x1: SPOT.night.x + 0.55, z0: SPOT.night.z - 0.5, z1: SPOT.night.z + 0.5, y: 0.8 },
+  { room: 1, x0: SPOT.table.x - 1.7, x1: SPOT.table.x + 1.7, z0: SPOT.table.z - 1, z1: SPOT.table.z + 1, y: 0.95 },
+  { room: 2, x0: SPOT.coffee.x - 1, x1: SPOT.coffee.x + 1, z0: SPOT.coffee.z - 0.55, z1: SPOT.coffee.z + 0.55, y: 0.5 },
+  { room: 3, x0: SPOT.sink.x - 1.65, x1: SPOT.sink.x + 1.65, z0: SPOT.sink.z - 0.55, z1: SPOT.sink.z + 0.55, y: 1.0 },
 ];
 
 export function surfaceAt(x, z) {
@@ -65,9 +87,10 @@ function wallList() {
       const c = side === 'N' ? r.z0 : side === 'S' ? r.z1 : side === 'W' ? r.x0 : r.x1;
       const from = axis === 'z' ? r.x0 : r.z0;
       const to = axis === 'z' ? r.x1 : r.z1;
-      const door = DOORS.find((d) => (d.a === i || d.b === i) && d.axis === axis && d.c === c);
+      const doors = DOORS.filter((d) => (d.a === i || d.b === i) && d.axis === axis && d.c === c && d.p > from && d.p < to)
+        .map((d) => d.p).sort((a, b) => a - b);
       const inward = side === 'N' || side === 'W' ? 1 : -1;
-      out.push({ room: i, side, axis, c, from, to, door: door ? door.p : null, inward, lowered: false, k: 1 });
+      out.push({ room: i, side, axis, c, from, to, doors, inward, lowered: false, k: 1 });
     }
   });
   return out;
@@ -91,10 +114,11 @@ export function snapToWall(i, x, z) {
 export function buildWorld(scene) {
   const world = { walls: wallList(), wallGroups: [] };
   const R = rng(7);
+  const HC = HOUSE_CENTER;
 
   // Ground around the house and the floors of the rooms.
   const floor = [];
-  floor.push([12 * 16, -6, 8 * 16, 80 * 16, 2, 70 * 16, '#8ED16F']);
+  floor.push([HC.x * 16, -6, HC.z * 16, (HOUSE.x1 - HOUSE.x0 + 56) * 16, 2, (HOUSE.z1 - HOUSE.z0 + 54) * 16, '#8ED16F']);
   const pick = (arr) => arr[Math.floor(R() * arr.length)];
   ROOMS.forEach((r, i) => {
     for (let x = r.x0; x < r.x1; x++) {
@@ -109,17 +133,30 @@ export function buildWorld(scene) {
       }
     }
   });
-  // Garden path from the living room door, and grass tufts.
-  for (let x = 16; x < 24; x++) floor.push([(x + 0.5) * 16, -2.8, 12.5 * 16, 14, 3, 14, x % 2 ? '#D8D2C4' : '#CFC8B8']);
-  for (let n = 0; n < 26; n++) {
-    const x = 16.3 + R() * 7.4, z = 0.3 + R() * 15.4;
-    if (Math.abs(z - 12.5) < 0.8) continue;
+
+  // Garden: a path from the house door straight across to a gate in the fence.
+  const g = ROOMS[GARDEN];
+  const gd = DOORS.find((d) => d.a === GARDEN || d.b === GARDEN);
+  const path = { axis: gd.axis, p: gd.p };
+  const onPath = (x, z) => Math.abs((path.axis === 'z' ? x : z) - path.p) < 0.8;
+  // The gate is on the garden side across from the door.
+  const gateSide = gd.axis === 'x' ? (gd.c === g.x0 ? 'E' : 'W') : (gd.c === g.z0 ? 'S' : 'N');
+  if (gd.axis === 'x') {
+    for (let x = g.x0; x < g.x1; x++) floor.push([(x + 0.5) * 16, -2.8, gd.p * 16, 14, 3, 14, x % 2 ? '#D8D2C4' : '#CFC8B8']);
+  } else {
+    for (let z = g.z0; z < g.z1; z++) floor.push([gd.p * 16, -2.8, (z + 0.5) * 16, 14, 3, 14, z % 2 ? '#D8D2C4' : '#CFC8B8']);
+  }
+  const gArea = (g.x1 - g.x0) * (g.z1 - g.z0);
+  for (let n = 0; n < Math.round(gArea / 5); n++) {
+    const x = g.x0 + 0.3 + R() * (g.x1 - g.x0 - 0.6), z = g.z0 + 0.3 + R() * (g.z1 - g.z0 - 0.6);
+    if (onPath(x, z)) continue;
     floor.push([x * 16, 0, z * 16, 1.2, 2 + R() * 2, 1.2, '#5CB83A']);
   }
   // A few flowers and bushes outside the house, just for looks.
+  const nearHouse = (x, z) => ROOMS.some((r) => x > r.x0 - 0.6 && x < r.x1 + 0.6 && z > r.z0 - 0.6 && z < r.z1 + 0.6);
   for (let n = 0; n < 40; n++) {
-    let x = -6 + R() * 36, z = -6 + R() * 28;
-    if (x > -0.6 && x < 24.6 && z > -0.6 && z < 16.6) continue;
+    const x = HOUSE.x0 - 6 + R() * (HOUSE.x1 - HOUSE.x0 + 12), z = HOUSE.z0 - 6 + R() * (HOUSE.z1 - HOUSE.z0 + 12);
+    if (nearHouse(x, z)) continue;
     if (R() < 0.5) floor.push([x * 16, -4, z * 16, 10, 8, 10, pick(['#4CB050', '#3E9B45', '#5CC23A'])]);
     else floor.push([x * 16, -4, z * 16, 3, 7, 3, pick(['#FF8FB1', '#FFD43B', '#FFFFFF', '#C9A0FF'])]);
   }
@@ -129,28 +166,45 @@ export function buildWorld(scene) {
 
   // Built-in furniture.
   const W = '#B9784A', WD = '#8A5634';
+  const S = SPOT;
+  const px = (v) => v * 16;
   const fx = [
     // Bedroom: rug and a night table.
-    [4 * 16, 0, 4.6 * 16, 52, 0.6, 36, '#FFB8D4'], [4 * 16, 0.6, 4.6 * 16, 44, 0.3, 28, '#FFD1E3'],
-    [7.15 * 16, 0, 0.8 * 16, 17, 12.8, 15, W], [7.15 * 16, 4, 1.3 * 16 + 0.5, 13, 3.5, 0.6, WD], [7.15 * 16, 5.5, 1.3 * 16 + 1, 2, 1, 0.6, '#FFD43B'],
+    [px(S.bedRug.x), 0, px(S.bedRug.z), 52, 0.6, 36, '#FFB8D4'], [px(S.bedRug.x), 0.6, px(S.bedRug.z), 44, 0.3, 28, '#FFD1E3'],
+    [px(S.night.x), 0, px(S.night.z), 17, 12.8, 15, W], [px(S.night.x), 4, px(S.night.z + 0.5) + 0.5, 13, 3.5, 0.6, WD], [px(S.night.x), 5.5, px(S.night.z + 0.5) + 1, 2, 1, 0.6, '#FFD43B'],
     // Dining table.
-    [4 * 16, 14, 12.2 * 16, 54, 1.4, 32, W], [4 * 16, 15.2, 12.2 * 16, 50, 0.2, 28, '#FFFFFF'],
-    ...[[-24, -13], [24, -13], [-24, 13], [24, 13]].map(([dx, dz]) => [4 * 16 + dx, 0, 12.2 * 16 + dz, 2, 14, 2, WD]),
+    [px(S.table.x), 14, px(S.table.z), 54, 1.4, 32, W], [px(S.table.x), 15.2, px(S.table.z), 50, 0.2, 28, '#FFFFFF'],
+    ...[[-24, -13], [24, -13], [-24, 13], [24, 13]].map(([dx, dz]) => [px(S.table.x) + dx, 0, px(S.table.z) + dz, 2, 14, 2, WD]),
     // Living room: round rug and coffee table.
-    [12 * 16, 0, 12.6 * 16, 64, 0.6, 44, '#8E6CFF'], [12 * 16, 0.6, 12.6 * 16, 52, 0.3, 34, '#B9A6FF'],
-    [12 * 16, 6, 13.05 * 16, 32, 2, 18, WD], ...[[-14, -7], [14, -7], [-14, 7], [14, 7]].map(([dx, dz]) => [12 * 16 + dx, 0, 13.05 * 16 + dz, 2, 6, 2, W]),
+    [px(S.livRug.x), 0, px(S.livRug.z), 64, 0.6, 44, '#8E6CFF'], [px(S.livRug.x), 0.6, px(S.livRug.z), 52, 0.3, 34, '#B9A6FF'],
+    [px(S.coffee.x), 6, px(S.coffee.z), 32, 2, 18, WD], ...[[-14, -7], [14, -7], [-14, 7], [14, 7]].map(([dx, dz]) => [px(S.coffee.x) + dx, 0, px(S.coffee.z) + dz, 2, 6, 2, W]),
     // Bathroom counter with a sink.
-    [13.95 * 16, 0, 0.75 * 16, 52, 15, 17, '#FFFFFF'], [13.95 * 16, 15, 0.75 * 16, 54, 1, 18, '#9FD8F5'],
-    [13.95 * 16, 15.2, 0.85 * 16, 14, 1, 10, '#CDEBFF'], [13.95 * 16, 16, 0.4 * 16, 1.6, 4, 1.6, '#C0C7D1'], [13.95 * 16, 19, 0.55 * 16, 1.6, 1.2, 4, '#C0C7D1'],
-    [13.2 * 16, 4, 1.3 * 16 + 1, 18, 8, 0.5, '#E6F6FF'], [14.7 * 16, 4, 1.3 * 16 + 1, 18, 8, 0.5, '#E6F6FF'],
-    // Garden fence and gate posts.
+    [px(S.sink.x), 0, px(S.sink.z), 52, 15, 17, '#FFFFFF'], [px(S.sink.x), 15, px(S.sink.z), 54, 1, 18, '#9FD8F5'],
+    [px(S.sink.x), 15.2, px(S.sink.z + 0.1), 14, 1, 10, '#CDEBFF'], [px(S.sink.x), 16, px(S.sink.z - 0.35), 1.6, 4, 1.6, '#C0C7D1'], [px(S.sink.x), 19, px(S.sink.z - 0.2), 1.6, 1.2, 4, '#C0C7D1'],
+    [px(S.sink.x - 0.75), 4, px(S.sink.z + 0.55) + 1, 18, 8, 0.5, '#E6F6FF'], [px(S.sink.x + 0.75), 4, px(S.sink.z + 0.55) + 1, 18, 8, 0.5, '#E6F6FF'],
   ];
+  // Garden fence: posts and rails along every garden side that does not touch the house, with a gap for the gate.
   const fence = [];
   const post = (x, z) => fence.push([x * 16, 0, z * 16, 2, 11, 2, '#FFFFFF'], [x * 16, 11, z * 16, 1.4, 1.4, 1.4, '#F2EEE8']);
-  for (let x = 16.5; x < 24; x += 1) { post(x, 0.1); post(x, 15.9); }
-  for (let z = 0.5; z < 16; z += 1) if (Math.abs(z - 12.5) > 0.6) post(23.9, z);
-  fence.push([20 * 16, 6, 0.1 * 16, 128, 1.5, 1, '#FFFFFF'], [20 * 16, 6, 15.9 * 16, 128, 1.5, 1, '#FFFFFF']);
-  fence.push([23.9 * 16, 6, 5.75 * 16, 1, 1.5, 11.5 * 16 - 10, '#FFFFFF'], [23.9 * 16, 6, 14.5 * 16 + 2, 1, 1.5, 2.5 * 16 - 8, '#FFFFFF']);
+  const houseRoomAt = (x, z) => { const i = roomAt(x, z); return i >= 0 && i !== GARDEN; };
+  for (const side of ['N', 'S', 'W', 'E']) {
+    const along = side === 'N' || side === 'S';
+    const from = along ? g.x0 : g.z0, to = along ? g.x1 : g.z1;
+    const line = side === 'N' ? g.z0 + 0.1 : side === 'S' ? g.z1 - 0.1 : side === 'W' ? g.x0 + 0.1 : g.x1 - 0.1;
+    const out = side === 'N' || side === 'W' ? -0.4 : 0.4;
+    const at = (t) => (along ? [t, line] : [line, t]);
+    const outside = (t) => (along ? houseRoomAt(t, line + out) : houseRoomAt(line + out, t));
+    const gate = (t) => side === gateSide && Math.abs(t - gd.p) < 0.6;
+    for (let t = from + 0.5; t < to; t += 1) {
+      if (outside(t) || gate(t)) continue;
+      post(...at(t));
+      const n = t + 1;
+      if (n < to && !outside(n) && !gate(n)) {
+        const [x, z] = at(t + 0.5);
+        fence.push(along ? [x * 16, 6, z * 16, 16, 1.5, 1, '#FFFFFF'] : [x * 16, 6, z * 16, 1, 1.5, 16, '#FFFFFF']);
+      }
+    }
+  }
   scene.add(boxesGroup(fx.concat(fence), { seed: 11, jitter: 0.03 }));
 
   world.wallParent = new THREE.Group();
@@ -170,9 +224,12 @@ function buildWalls(world, colors) {
     const boxes = [];
     // Pieces along the wall: [a, b] ranges in wall coordinates, y from y0 to y1.
     const pieces = [];
-    if (w.door != null) {
-      pieces.push([w.from, w.door - DOOR_W / 2, 0, WALL_H], [w.door + DOOR_W / 2, w.to, 0, WALL_H], [w.door - DOOR_W / 2, w.door + DOOR_W / 2, DOOR_H, WALL_H]);
-    } else pieces.push([w.from, w.to, 0, WALL_H]);
+    let at = w.from;
+    for (const d of w.doors) {
+      pieces.push([at, d - DOOR_W / 2, 0, WALL_H], [d - DOOR_W / 2, d + DOOR_W / 2, DOOR_H, WALL_H]);
+      at = d + DOOR_W / 2;
+    }
+    pieces.push([at, w.to, 0, WALL_H]);
     const off = w.c + (w.inward * T) / 2; // centre of this wall layer
     const add = (a, b, y0, y1, color, thick = T, inset = 0, kind) => {
       const len = b - a;
@@ -188,10 +245,10 @@ function buildWalls(world, colors) {
       if (w.room === 3) add(a, b, y0, Math.min(y1, 1.3), '#9FD8F5', T + 0.04, 0.02);
       if (y1 >= WALL_H) add(a, b, WALL_H - 0.12, WALL_H, '#FFFFFF', T + 0.02, 0);
     }
-    if (w.door != null) {
-      add(w.door - DOOR_W / 2 - 0.12, w.door - DOOR_W / 2, 0, DOOR_H, '#FFFFFF', T + 0.06, 0.02);
-      add(w.door + DOOR_W / 2, w.door + DOOR_W / 2 + 0.12, 0, DOOR_H, '#FFFFFF', T + 0.06, 0.02);
-      add(w.door - DOOR_W / 2 - 0.12, w.door + DOOR_W / 2 + 0.12, DOOR_H, DOOR_H + 0.12, '#FFFFFF', T + 0.06, 0.02);
+    for (const d of w.doors) {
+      add(d - DOOR_W / 2 - 0.12, d - DOOR_W / 2, 0, DOOR_H, '#FFFFFF', T + 0.06, 0.02);
+      add(d + DOOR_W / 2, d + DOOR_W / 2 + 0.12, 0, DOOR_H, '#FFFFFF', T + 0.06, 0.02);
+      add(d - DOOR_W / 2 - 0.12, d + DOOR_W / 2 + 0.12, DOOR_H, DOOR_H + 0.12, '#FFFFFF', T + 0.06, 0.02);
     }
     const win = WINDOWS[`${w.room}${w.side}`];
     const wins = win == null ? [] : Array.isArray(win) ? win : [win];

@@ -128,6 +128,11 @@ object Store {
     val buddies = mutableStateListOf("boni")
     /** The first, free friend. Shahar got Boni; Tomer picks his own on his first visit. */
     var starter by mutableStateOf("boni")
+    /** The house template (layouts.json). Everyone starts in "classic" and picks once on their next house visit. */
+    var layout by mutableStateOf("classic")
+    var layoutChosen by mutableStateOf(false)
+    /** Templates bought with points (the free ones are always yours). */
+    val boughtLayouts = mutableStateListOf<String>()
     /** A parent can pause English for Tomer so the app is all about the gifted test. */
     var englishPaused by mutableStateOf(false)
     /**
@@ -191,6 +196,11 @@ object Store {
             roomWalls[i] = prefs.getString("wall$i", defaultWalls[i]) ?: defaultWalls[i]
         }
         room = prefs.getInt("room", 0).coerceIn(0, ROOMS.size - 1)
+        layout = prefs.getString("layout", "classic") ?: "classic"
+        layoutChosen = prefs.getBoolean("layoutChosen", false)
+        boughtLayouts.clear()
+        val ll = JSONArray(prefs.getString("layouts", "[]") ?: "[]")
+        for (i in 0 until ll.length()) boughtLayouts.add(ll.getString(i))
 
         levels.clear()
         val lv = JSONObject(prefs.getString("levels", "{}") ?: "{}")
@@ -251,6 +261,9 @@ object Store {
             .putString("walls", JSONArray(walls.toList()).toString())
             .putString("buddies", JSONArray(buddies.toList()).toString())
             .putString("starter", starter)
+            .putString("layout", layout)
+            .putBoolean("layoutChosen", layoutChosen)
+            .putString("layouts", JSONArray(boughtLayouts.toList()).toString())
             .putBoolean("englishPaused", englishPaused)
             .apply()
         WordsWidget.updateAll(appContext)
@@ -375,6 +388,39 @@ object Store {
         points -= price
         buddies.add(b.id)
         save()
+        return true
+    }
+
+    fun ownsLayout(l: HouseLayout): Boolean = l.price == 0 || boughtLayouts.contains(l.id)
+
+    /**
+     * Moves into another house template. Every item stays in its room, at the same spot
+     * relative to the room (so a bed in a corner stays in that corner of the new room).
+     */
+    fun moveToLayout(id: String) {
+        val from = Layouts.byId(appContext, layout)
+        val to = Layouts.byId(appContext, id)
+        if (from.id != to.id) {
+            for ((k, p) in items.toMap()) {
+                if (p.gx.isNaN() || p.gz.isNaN()) continue
+                val a = from.rooms.getOrNull(p.room) ?: continue
+                val b = to.rooms.getOrNull(p.room) ?: continue
+                val u = ((p.gx - a.x0) / (a.x1 - a.x0)).coerceIn(0f, 1f)
+                val v = ((p.gz - a.z0) / (a.z1 - a.z0)).coerceIn(0f, 1f)
+                items[k] = p.copy(gx = b.x0 + u * (b.x1 - b.x0), gz = b.z0 + v * (b.z1 - b.z0))
+            }
+        }
+        layout = to.id
+        layoutChosen = true
+        save()
+    }
+
+    fun buyLayout(l: HouseLayout): Boolean {
+        if (ownsLayout(l)) return true
+        if (points < l.price) return false
+        points -= l.price
+        boughtLayouts.add(l.id)
+        moveToLayout(l.id)
         return true
     }
 
