@@ -36,19 +36,23 @@ const WINDOWS = LAYOUT.windows || {};
 
 const GARDEN = ROOMS.findIndex((r) => r.garden);
 
-/** Built-in furniture spots, worked out from each room's size so they fit every template. */
-function decorSpots() {
+/**
+ * Where the starter furniture (the move-in gift) stands at first, worked out from each room's size
+ * so it fits every template. The furniture itself is a normal item now (items.js), so the kids can
+ * move it, store it and buy more.
+ */
+export function giftSpot(id) {
   const c = (i) => ({ x: (ROOMS[i].x0 + ROOMS[i].x1) / 2, z: (ROOMS[i].z0 + ROOMS[i].z1) / 2 });
-  return {
-    night: { x: ROOMS[0].x1 - 0.85, z: ROOMS[0].z0 + 0.8 },
-    bedRug: { x: c(0).x, z: c(0).z + 0.6 },
-    table: { x: c(1).x, z: c(1).z + 0.2 },
-    livRug: { x: c(2).x, z: c(2).z + 0.6 },
-    coffee: { x: c(2).x, z: c(2).z + 1.05 },
-    sink: { x: ROOMS[3].x1 - 2.05, z: ROOMS[3].z0 + 0.75 },
-  };
+  switch (id) {
+    case 'nightstand': return { x: ROOMS[0].x1 - 0.85, z: ROOMS[0].z0 + 0.8 };
+    case 'bedrug': return { x: c(0).x, z: c(0).z + 0.6 };
+    case 'table': return { x: c(1).x, z: c(1).z + 0.2 };
+    case 'livrug': return { x: c(2).x, z: c(2).z + 0.6 };
+    case 'coffee': return { x: c(2).x, z: c(2).z + 1.05 };
+    case 'sink': return { x: ROOMS[3].x1 - 2.05, z: ROOMS[3].z0 + 0.75 };
+    default: return null;
+  }
 }
-const SPOT = decorSpots();
 
 export function roomAt(x, z) {
   for (let i = 0; i < ROOMS.length; i++) {
@@ -63,13 +67,11 @@ export function roomCenter(i) {
   return new THREE.Vector3((r.x0 + r.x1) / 2, 0, (r.z0 + r.z1) / 2);
 }
 
-/** Built-in furniture that small items can stand on: [x0, x1, z0, z1, top]. */
-export const SURFACES = [
-  { room: 0, x0: SPOT.night.x - 0.55, x1: SPOT.night.x + 0.55, z0: SPOT.night.z - 0.5, z1: SPOT.night.z + 0.5, y: 0.8 },
-  { room: 1, x0: SPOT.table.x - 1.7, x1: SPOT.table.x + 1.7, z0: SPOT.table.z - 1, z1: SPOT.table.z + 1, y: 0.95 },
-  { room: 2, x0: SPOT.coffee.x - 1, x1: SPOT.coffee.x + 1, z0: SPOT.coffee.z - 0.55, z1: SPOT.coffee.z + 0.55, y: 0.5 },
-  { room: 3, x0: SPOT.sink.x - 1.65, x1: SPOT.sink.x + 1.65, z0: SPOT.sink.z - 0.55, z1: SPOT.sink.z + 0.55, y: 1.0 },
-];
+/**
+ * Tops that small items can stand on: { x0, x1, z0, z1, y }. Filled by the house from the tables
+ * and counters that are in the rooms right now (they can be moved, so this changes).
+ */
+export const SURFACES = [];
 
 export function surfaceAt(x, z) {
   let y = 0;
@@ -164,25 +166,6 @@ export function buildWorld(scene) {
   floorMesh.traverse((m) => { if (m.isMesh) m.castShadow = false; });
   scene.add(floorMesh);
 
-  // Built-in furniture.
-  const W = '#B9784A', WD = '#8A5634';
-  const S = SPOT;
-  const px = (v) => v * 16;
-  const fx = [
-    // Bedroom: rug and a night table.
-    [px(S.bedRug.x), 0, px(S.bedRug.z), 52, 0.6, 36, '#FFB8D4'], [px(S.bedRug.x), 0.6, px(S.bedRug.z), 44, 0.3, 28, '#FFD1E3'],
-    [px(S.night.x), 0, px(S.night.z), 17, 12.8, 15, W], [px(S.night.x), 4, px(S.night.z + 0.5) + 0.5, 13, 3.5, 0.6, WD], [px(S.night.x), 5.5, px(S.night.z + 0.5) + 1, 2, 1, 0.6, '#FFD43B'],
-    // Dining table.
-    [px(S.table.x), 14, px(S.table.z), 54, 1.4, 32, W], [px(S.table.x), 15.2, px(S.table.z), 50, 0.2, 28, '#FFFFFF'],
-    ...[[-24, -13], [24, -13], [-24, 13], [24, 13]].map(([dx, dz]) => [px(S.table.x) + dx, 0, px(S.table.z) + dz, 2, 14, 2, WD]),
-    // Living room: round rug and coffee table.
-    [px(S.livRug.x), 0, px(S.livRug.z), 64, 0.6, 44, '#8E6CFF'], [px(S.livRug.x), 0.6, px(S.livRug.z), 52, 0.3, 34, '#B9A6FF'],
-    [px(S.coffee.x), 6, px(S.coffee.z), 32, 2, 18, WD], ...[[-14, -7], [14, -7], [-14, 7], [14, 7]].map(([dx, dz]) => [px(S.coffee.x) + dx, 0, px(S.coffee.z) + dz, 2, 6, 2, W]),
-    // Bathroom counter with a sink.
-    [px(S.sink.x), 0, px(S.sink.z), 52, 15, 17, '#FFFFFF'], [px(S.sink.x), 15, px(S.sink.z), 54, 1, 18, '#9FD8F5'],
-    [px(S.sink.x), 15.2, px(S.sink.z + 0.1), 14, 1, 10, '#CDEBFF'], [px(S.sink.x), 16, px(S.sink.z - 0.35), 1.6, 4, 1.6, '#C0C7D1'], [px(S.sink.x), 19, px(S.sink.z - 0.2), 1.6, 1.2, 4, '#C0C7D1'],
-    [px(S.sink.x - 0.75), 4, px(S.sink.z + 0.55) + 1, 18, 8, 0.5, '#E6F6FF'], [px(S.sink.x + 0.75), 4, px(S.sink.z + 0.55) + 1, 18, 8, 0.5, '#E6F6FF'],
-  ];
   // Garden fence: posts and rails along every garden side that does not touch the house, with a gap for the gate.
   const fence = [];
   const post = (x, z) => fence.push([x * 16, 0, z * 16, 2, 11, 2, '#FFFFFF'], [x * 16, 11, z * 16, 1.4, 1.4, 1.4, '#F2EEE8']);
@@ -205,7 +188,7 @@ export function buildWorld(scene) {
       }
     }
   }
-  scene.add(boxesGroup(fx.concat(fence), { seed: 11, jitter: 0.03 }));
+  scene.add(boxesGroup(fence, { seed: 11, jitter: 0.03 }));
 
   world.wallParent = new THREE.Group();
   scene.add(world.wallParent);

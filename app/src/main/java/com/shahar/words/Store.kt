@@ -38,12 +38,22 @@ data class ShopItem(
     val size: Int = 52,
     val wall: Boolean = false,
     val room: Int = 0,
+    /** Can be bought again and again (the starter furniture). Copies are kept as "table~2", "table~3"... */
+    val multi: Boolean = false,
 )
+
+/** The shop item an owned item is: "table~2" is a second "table". */
+fun shopItemOf(key: String): ShopItem? = SHOP.firstOrNull { it.id == key.substringBefore('~') }
+
+/** Furniture every kid gets when moving in. It is a normal item: it can be moved, stored and bought again. */
+val GIFT_ITEMS = listOf("bedrug", "nightstand", "table", "livrug", "coffee", "sink")
 
 data class WallColor(val id: String, val he: String, val color: Color, val price: Int)
 
 val SHOP = listOf(
     ShopItem("bed", "🛏️", "מיטה", "bed", 300, 68, wall = false, room = 0),
+    ShopItem("nightstand", "🗄️", "שידה", "nightstand", 150, 52, room = 0, multi = true),
+    ShopItem("bedrug", "🟪", "שטיח ורוד", "rug", 120, 52, room = 0, multi = true),
     ShopItem("teddy", "🧸", "דובי", "teddy bear", 150, 44, wall = false, room = 0),
     ShopItem("lamp", "💡", "מנורה", "lamp", 120, 40, wall = true, room = 0),
     ShopItem("picture", "🖼️", "תמונה", "picture", 140, 48, wall = true, room = 0),
@@ -52,6 +62,7 @@ val SHOP = listOf(
     ShopItem("guitar", "🎸", "גיטרה", "guitar", 350, 52, wall = false, room = 0),
     ShopItem("game", "🎮", "משחק מחשב", "video game", 500, 44, wall = false, room = 0),
     ShopItem("unicorn", "🦄", "חד קרן", "unicorn", 900, 56, wall = false, room = 0),
+    ShopItem("table", "🍽️", "שולחן אוכל", "table", 300, 60, room = 1, multi = true),
     ShopItem("chair", "🪑", "כיסא", "chair", 120, 52, wall = false, room = 1),
     ShopItem("plates", "🍽️", "צלחות", "plates", 100, 44, wall = false, room = 1),
     ShopItem("pizza", "🍕", "פיצה", "pizza", 150, 44, wall = false, room = 1),
@@ -62,6 +73,8 @@ val SHOP = listOf(
     ShopItem("cupcake", "🧁", "קאפקייק", "cupcake", 110, 40, wall = false, room = 1),
     ShopItem("candle", "🕯️", "נר", "candle", 90, 40, wall = true, room = 1),
     ShopItem("sofa", "🛋️", "ספה", "sofa", 350, 64, wall = false, room = 2),
+    ShopItem("coffee", "☕", "שולחן סלון", "coffee table", 200, 56, room = 2, multi = true),
+    ShopItem("livrug", "🟣", "שטיח סגול", "rug", 150, 60, room = 2, multi = true),
     ShopItem("tv", "📺", "טלוויזיה", "TV", 500, 56, wall = false, room = 2),
     ShopItem("piano", "🎹", "פסנתר", "piano", 700, 60, wall = false, room = 2),
     ShopItem("plant", "🪴", "עציץ", "plant", 90, 46, wall = false, room = 2),
@@ -70,6 +83,7 @@ val SHOP = listOf(
     ShopItem("cat", "🐱", "חתול", "cat", 600, 48, wall = false, room = 2),
     ShopItem("dog", "🐶", "כלב", "dog", 600, 48, wall = false, room = 2),
     ShopItem("bathtub", "🛁", "אמבטיה", "bathtub", 400, 64, wall = false, room = 3),
+    ShopItem("sink", "🚰", "כיור", "sink", 250, 60, room = 3, multi = true),
     ShopItem("toilet", "🚽", "שירותים", "toilet", 250, 56, wall = false, room = 3),
     ShopItem("mirror", "🪞", "מראה", "mirror", 200, 48, wall = true, room = 3),
     ShopItem("soap", "🧼", "סבון", "soap", 60, 36, wall = false, room = 3),
@@ -215,6 +229,13 @@ object Store {
                 o.optDouble("gx", Double.NaN).toFloat(), o.optDouble("gz", Double.NaN).toFloat(), o.optInt("rot", 0),
             )
         }
+        // The furniture that used to be built into the rooms is now the kid's own (same spot as before).
+        if (!prefs.getBoolean("gift", false)) {
+            for (id in GIFT_ITEMS) {
+                val item = shopItemOf(id) ?: continue
+                if (!items.containsKey(id)) items[id] = Placement(0.4f, 0.6f, true, item.room)
+            }
+        }
 
         val wl = JSONArray(prefs.getString("walls", "[\"cream\"]") ?: "[\"cream\"]")
         walls.clear()
@@ -258,6 +279,7 @@ object Store {
             .putInt("room", room)
             .putString("levels", lv.toString())
             .putString("items", its.toString())
+            .putBoolean("gift", true)
             .putString("walls", JSONArray(walls.toList()).toString())
             .putString("buddies", JSONArray(buddies.toList()).toString())
             .putString("starter", starter)
@@ -347,12 +369,18 @@ object Store {
         return bonus
     }
 
+    /** How many of this shop item the kid has (in the rooms or in the storeroom). */
+    fun countOf(item: ShopItem): Int = items.keys.count { it.substringBefore('~') == item.id }
+
     fun buy(item: ShopItem): Boolean {
-        if (items.containsKey(item.id) || points < item.price) return false
+        if ((items.containsKey(item.id) && !item.multi) || points < item.price) return false
         points -= item.price
         val x = 0.1f + Random.nextFloat() * 0.6f
         val y = if (item.wall) 0.12f + Random.nextFloat() * 0.2f else 0.58f + Random.nextFloat() * 0.2f
-        items[item.id] = Placement(x, y, true, item.room)
+        var key = item.id
+        var n = 2
+        while (items.containsKey(key)) key = "${item.id}~${n++}"
+        items[key] = Placement(x, y, true, item.room)
         save()
         return true
     }

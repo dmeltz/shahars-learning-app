@@ -135,10 +135,11 @@ private fun houseJson(buddyRooms: Map<String, Int>, asleep: Boolean): String {
     o.put("asleep", asleep)
     o.put("sleepLine", Store.g("זזז... כולם ישנים. לחצי על מישהו כדי להעיר", "זזז... כולם ישנים. לחץ על מישהו כדי להעיר"))
     val items = JSONArray()
-    SHOP.forEach { item ->
-        val p = Store.items[item.id] ?: return@forEach
+    Store.items.toMap().forEach { (key, p) ->
+        val item = shopItemOf(key) ?: return@forEach
         val it = JSONObject()
-            .put("id", item.id)
+            .put("id", key)
+            .put("model", item.id)
             .put("room", p.room)
             .put("x", p.x.toDouble())
             .put("y", p.y.toDouble())

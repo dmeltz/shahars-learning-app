@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { boxesGroup, boxesBounds, hashStr, rng } from './voxel.js';
 import { ITEM_MODELS, ITEM_META } from './items.js';
 import { makeCharacter, pose, CHAR_IDS } from './chars.js';
-import { ROOMS, HOUSE, HOUSE_CENTER, LAYOUT, DOORS, buildWorld, updateWalls, roomAt, roomCenter, surfaceAt, snapToWall, wallOf } from './world.js';
+import { ROOMS, HOUSE, HOUSE_CENTER, LAYOUT, DOORS, buildWorld, updateWalls, roomAt, roomCenter, surfaceAt, snapToWall, wallOf, giftSpot, SURFACES } from './world.js';
 import { makeBlocker, findPath, BODY } from './nav.js';
 
 const params = new URLSearchParams(location.search);
@@ -71,9 +71,11 @@ function itemBoxes(id) {
   }
   return itemCache[id];
 }
-function makeItem(id) {
-  const { boxes, bounds } = itemBoxes(id);
-  const g = boxesGroup(boxes, { seed: hashStr(id) });
+/** Which model an item uses. A second table bought in the shop is "table~2", drawn like "table". */
+const mid = (d) => d.model || d.id;
+function makeItem(model, id = model) {
+  const { boxes, bounds } = itemBoxes(model);
+  const g = boxesGroup(boxes, { seed: hashStr(model) });
   const holder = new THREE.Group();
   holder.add(g);
   holder.userData = { kind: 'item', id, bounds };
@@ -199,7 +201,9 @@ function startHouse() {
   function defaultSpot(it) {
     // Where an item stood in the old flat picture of the room, turned into a spot in the 3D room.
     const r = ROOMS[it.room] || ROOMS[0];
-    const meta = ITEM_META[it.id] || {};
+    const meta = ITEM_META[mid(it)] || {};
+    const gift = it.id === mid(it) && giftSpot(it.id);
+    if (gift && roomAt(gift.x, gift.z) === it.room) return gift;
     const fx = Math.min(1, Math.max(0, (it.x || 0) / 0.85));
     const fy = Math.min(1, Math.max(0, (it.y || 0) / 0.85));
     const R = rng(hashStr(it.id));
@@ -213,7 +217,7 @@ function startHouse() {
     const z = r.z0 + 1.3 + Math.max(0, (fy - 0.4) / 0.6) * (r.z1 - r.z0 - 2.3);
     return { x, z };
   }
-  const SURFACES_IN = (room) => surfacesOf(room)[0];
+  const SURFACES_IN = (room) => SURFACES.find((s) => s.room === room);
 
   function itemHalf(id, rot) {
     const b = itemCache[id] ? itemCache[id].bounds : itemBoxes(id).bounds;
@@ -223,7 +227,7 @@ function startHouse() {
 
   function layoutItem(rec) {
     const { obj, data } = rec;
-    const meta = ITEM_META[data.id] || {};
+    const meta = ITEM_META[mid(data)] || {};
     let x = data.gx, z = data.gz;
     if (x == null || z == null || isNaN(x) || isNaN(z)) {
       const s = defaultSpot(data);
@@ -240,7 +244,7 @@ function startHouse() {
       rec.wall = wallOf(world, room, s.side);
       rec.x = s.x; rec.z = s.z;
     } else {
-      const { hx, hz } = itemHalf(data.id, data.rot || 0);
+      const { hx, hz } = itemHalf(mid(data), data.rot || 0);
       x = Math.min(r.x1 - hx - 0.17, Math.max(r.x0 + hx + 0.17, x));
       z = Math.min(r.z1 - hz - 0.17, Math.max(r.z0 + hz + 0.17, z));
       if (r.x1 - r.x0 < hx * 2 + 0.34) x = (r.x0 + r.x1) / 2;
@@ -252,14 +256,47 @@ function startHouse() {
     }
   }
 
+  /** Tables and counters first: the small items on them need to know where their tops are. */
+  const isSurface = (d) => !!(ITEM_META[mid(d)] || {}).surface;
+  function refreshSurfaces() {
+    SURFACES.length = 0;
+    for (const rec of items.values()) {
+      const meta = ITEM_META[mid(rec.data)] || {};
+      if (!meta.surface || rec.wall) continue;
+      const { hx, hz } = itemHalf(mid(rec.data), rec.data.rot || 0);
+      SURFACES.push({ id: rec.data.id, room: rec.room, x0: rec.x - hx, x1: rec.x + hx, z0: rec.z - hz, z1: rec.z + hz, y: meta.surface });
+    }
+  }
+  /** The small items standing on a table right now, so they move and turn with it. */
+  function itemsOn(rec) {
+    const s = SURFACES.find((q) => q.id === rec.data.id);
+    if (!s) return [];
+    const out = [];
+    for (const o of items.values()) {
+      const meta = ITEM_META[mid(o.data)] || {};
+      if (o === rec || !meta.small || !(o.baseY > 0)) continue;
+      if (o.x > s.x0 && o.x < s.x1 && o.z > s.z0 && o.z < s.z1) out.push({ rec: o, dx: o.x - rec.x, dz: o.z - rec.z });
+    }
+    return out;
+  }
+  function relayoutSmall() {
+    for (const rec of items.values()) {
+      const meta = ITEM_META[mid(rec.data)] || {};
+      if (meta.small && !(dragging && dragging.rec === rec)) layoutItem(rec);
+    }
+  }
+
   function syncItems(list) {
     const keep = new Set();
-    for (const it of list) {
+    const ordered = list.filter((it) => isSurface(it)).concat(list.filter((it) => !isSurface(it)));
+    let surfacesDone = false;
+    for (const it of ordered) {
       if (!it.inRoom) continue;
+      if (!surfacesDone && !isSurface(it)) { refreshSurfaces(); surfacesDone = true; }
       keep.add(it.id);
       let rec = items.get(it.id);
       if (!rec) {
-        const obj = makeItem(it.id);
+        const obj = makeItem(mid(it), it.id);
         itemParent.add(obj);
         rec = { obj, data: it };
         items.set(it.id, rec);
@@ -274,6 +311,7 @@ function startHouse() {
         items.delete(id);
       }
     }
+    refreshSurfaces();
   }
 
   // ---------- Characters ----------
@@ -379,10 +417,10 @@ function startHouse() {
   function blockerFor(c) {
     const boxes = [];
     for (const rec of items.values()) {
-      const meta = ITEM_META[rec.data.id] || {};
-      if (rec.wall || meta.wall || meta.fly) continue;
+      const meta = ITEM_META[mid(rec.data)] || {};
+      if (rec.wall || meta.wall || meta.fly || meta.flat) continue; // rugs: friends walk over them
       if (meta.small && rec.baseY > 0) continue; // stands on a table, which is in the way anyway
-      const { hx, hz } = itemHalf(rec.data.id, rec.data.rot || 0);
+      const { hx, hz } = itemHalf(mid(rec.data), rec.data.rot || 0);
       boxes.push({ x0: rec.x - hx, x1: rec.x + hx, z0: rec.z - hz, z1: rec.z + hz });
     }
     const others = [];
@@ -597,11 +635,22 @@ function startHouse() {
     tapTimer = setTimeout(() => {
       const rec = items.get(hit.id);
       if (!rec) return;
-      const meta = ITEM_META[hit.id] || {};
+      const meta = ITEM_META[mid(rec.data)] || {};
       if (meta.wall && !ROOMS[rec.room].garden) return;
+      const on = itemsOn(rec);
       rec.data = { ...rec.data, rot: ((rec.data.rot || 0) + 1) % 4, gx: rec.x, gz: rec.z };
       layoutItem(rec);
       report(rec);
+      if (meta.surface) {
+        // Whatever stands on the table turns with it (a quarter turn around the table's middle).
+        refreshSurfaces();
+        for (const o of on) {
+          o.rec.data = { ...o.rec.data, gx: rec.x + o.dz, gz: rec.z - o.dx, rot: ((o.rec.data.rot || 0) + 1) % 4 };
+          layoutItem(o.rec);
+          report(o.rec);
+        }
+        relayoutSmall();
+      }
     }, 360);
   }
 
@@ -610,7 +659,7 @@ function startHouse() {
     const rec = items.get(h.id);
     if (!rec) { gesture.type = 'turn'; return; }
     const p = floorPoint(gesture.x0, gesture.y0) || new THREE.Vector3(rec.x, 0, rec.z);
-    dragging = { kind: 'item', rec, dx: rec.x - p.x, dz: rec.z - p.z };
+    dragging = { kind: 'item', rec, dx: rec.x - p.x, dz: rec.z - p.z, on: itemsOn(rec) };
   }
 
   function moveDrag(x, y) {
@@ -622,15 +671,32 @@ function startHouse() {
     const rec = dragging.rec;
     rec.data = { ...rec.data, gx: nx, gz: nz };
     layoutItem(rec);
+    carry();
     rec.obj.position.y += 0.25;
+    for (const o of dragging.on) o.rec.obj.position.y += 0.25;
+  }
+
+  /** The things on a dragged table go along with it. */
+  function carry() {
+    if (!dragging.on.length && !isSurface(dragging.rec.data)) return;
+    const rec = dragging.rec;
+    refreshSurfaces();
+    for (const o of dragging.on) {
+      o.rec.data = { ...o.rec.data, gx: rec.x + o.dx, gz: rec.z + o.dz };
+      layoutItem(o.rec);
+    }
   }
 
   function endDrag() {
     if (!dragging) return;
     const rec = dragging.rec;
     layoutItem(rec);
+    carry();
     report(rec);
+    for (const o of dragging.on) report(o.rec);
+    const wasSurface = isSurface(rec.data);
     dragging = null;
+    if (wasSurface) relayoutSmall(); // something may have been left without a table under it
   }
 
   function report(rec) {
@@ -778,7 +844,7 @@ function startHouse() {
     // Wall items hide when their wall is lowered.
     for (const rec of items.values()) {
       rec.obj.visible = !(rec.wall && rec.wall.k < 0.6);
-      const meta = ITEM_META[rec.data.id] || {};
+      const meta = ITEM_META[mid(rec.data)] || {};
       if (meta.fly && !(dragging && dragging.rec === rec)) {
         rec.obj.position.y = rec.baseY + Math.sin(t * 2 + rec.x) * 0.15;
         rec.obj.rotation.y = ((rec.data.rot || 0) * Math.PI) / 2 + Math.sin(t * 0.7 + rec.z) * 0.6;
@@ -947,7 +1013,7 @@ function startHouse() {
   if (!window.Android) {
     // Plain browser: a demo house, so the scene can be checked without the phone.
     const all = Object.keys(ITEM_MODELS);
-    const roomOf = { bed: 0, teddy: 0, lamp: 0, picture: 0, clock: 0, books: 0, guitar: 0, game: 0, unicorn: 0, chair: 1, plates: 1, pizza: 1, cake: 1, teapot: 1, watermelon: 1, candy: 1, cupcake: 1, candle: 1, sofa: 2, tv: 2, piano: 2, plant: 2, rainbow: 2, puzzle: 2, cat: 2, dog: 2, bathtub: 3, toilet: 3, mirror: 3, soap: 3, duck: 3, toothbrush: 3, lotion: 3, sponge: 3 };
+    const roomOf = { bed: 0, teddy: 0, lamp: 0, picture: 0, clock: 0, books: 0, guitar: 0, game: 0, unicorn: 0, chair: 1, plates: 1, pizza: 1, cake: 1, teapot: 1, watermelon: 1, candy: 1, cupcake: 1, candle: 1, sofa: 2, tv: 2, piano: 2, plant: 2, rainbow: 2, puzzle: 2, cat: 2, dog: 2, bathtub: 3, toilet: 3, bedrug: 0, nightstand: 0, table: 1, livrug: 2, coffee: 2, sink: 3, mirror: 3, soap: 3, duck: 3, toothbrush: 3, lotion: 3, sponge: 3 };
     const R = rng(5);
     demoState = {
       room: Number(params.get('room') || 0),
@@ -973,6 +1039,7 @@ function startHouse() {
       screen(x, z) { const v = new THREE.Vector3(x, 0, z).project(camera); return { x: (v.x * 0.5 + 0.5) * window.innerWidth, y: (-v.y * 0.5 + 0.5) * window.innerHeight }; },
       char(id) { const c = chars.get(id); return c && { x: c.holder.position.x, z: c.holder.position.z, path: c.path.length, talk: c.talkT > 0 ? c.talk : null, selected: selected === id }; },
       chars() { return [...chars.keys()]; },
+      hit(x, y) { const h = hitTest(x, y); return h && { kind: h.kind, id: h.id }; },
     };
   }
   if (params.get('yaw')) { goal.yaw = cam.yaw = Number(params.get('yaw')); }
@@ -983,10 +1050,6 @@ function startHouse() {
   try { bridge.onReady(); } catch (e) { if (window.houseError) window.houseError('bridge: ' + e.message); }
 }
 
-function surfacesOf(room) {
-  return SURFACE_LIST.filter((s) => s.room === room);
-}
-import { SURFACES as SURFACE_LIST } from './world.js';
 
 function zTexture() {
   const c = document.createElement('canvas');

@@ -155,7 +155,7 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
             fontSize = 14.sp, color = if (news != null) Green else if (status != null) Purple else Ink, fontWeight = FontWeight.Bold,
             maxLines = 2, overflow = TextOverflow.Ellipsis,
         )
-        val stored = SHOP.filter { Store.items[it.id]?.inRoom == false }
+        val stored = Store.items.filter { !it.value.inRoom }.keys.sorted().mapNotNull { k -> shopItemOf(k)?.let { k to it } }
         Row(
             Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -170,11 +170,11 @@ fun HouseScreen(onBack: () -> Unit, onShop: () -> Unit) {
             }
             if (stored.isNotEmpty()) {
                 Text("📦", fontSize = 24.sp)
-                stored.forEach { item ->
+                stored.forEach { (key, item) ->
                     VoxImage(
                         "vox_item_${item.id}", item.he,
                         Modifier.size(48.dp).clip(RoundedCornerShape(12.dp)).background(Color.White)
-                            .clickable { Store.place(item.id, true) }.padding(4.dp),
+                            .clickable { Store.place(key, true) }.padding(4.dp),
                     )
                 }
             }
@@ -228,8 +228,9 @@ fun ShopScreen(onBack: () -> Unit, onHouse: () -> Unit) {
                         modifier = Modifier.padding(top = 8.dp))
                 }
                 items(SHOP.filter { it.room == r }) { item ->
-                    val owned = Store.items.containsKey(item.id)
-                    ShopCard(item.emoji, item.he, item.en, item.price, owned, voxName = "vox_item_${item.id}") {
+                    val count = Store.countOf(item)
+                    val owned = count > 0 && !item.multi
+                    ShopCard(item.emoji, item.he, item.en, item.price, owned, voxName = "vox_item_${item.id}", have = if (item.multi) count else 0) {
                         if (Store.buy(item)) {
                             Toast.makeText(ctx, "קנית ${item.he}! מחכה לך ב$roomName 🏠", Toast.LENGTH_SHORT).show()
                         } else {
@@ -273,6 +274,7 @@ fun ShopCard(
     swatch: Color? = null,
     image: Int? = null,
     voxName: String? = null,
+    have: Int = 0,
     onBuy: () -> Unit,
 ) {
     val canBuy = !owned && Store.points >= price
@@ -292,6 +294,7 @@ fun ShopCard(
         }
         Text(he, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Ink)
         if (en.isNotEmpty()) Text(en, fontSize = 14.sp, color = Purple)
+        if (have > 0) Text("יש לך $have · אפשר לקנות עוד", fontSize = 13.sp, color = Green, fontWeight = FontWeight.Bold)
         val label = if (owned) "✓ שלך" else "⭐ $price"
         Text(
             label, fontSize = 17.sp, fontWeight = FontWeight.Bold,

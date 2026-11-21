@@ -390,6 +390,27 @@ export const ITEM_MODELS = {
     [0, 21, 0, 4, 1.5, 4, '#BDE7FF', 'glass'],
     [4, 12, 0, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [-4, 12, 0, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [0, 12, 4, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [0, 12, -4, 1.2, 3, 1.2, '#BDE7FF', 'glass'],
   ],
+  // The starter furniture (the move-in gift). It used to be built into the rooms.
+  bedrug: () => [[0, 0, 0, 52, 0.6, 36, '#FFB8D4'], [0, 0.6, 0, 44, 0.3, 28, '#FFD1E3']],
+  nightstand: () => [
+    [0, 0, 0, 17, 12.8, 15, WOOD],
+    [0, 4, 7.8, 13, 3.5, 0.6, WOOD_D], [0, 5.5, 8.4, 2, 1, 0.6, '#FFD43B'],
+  ],
+  table: () => [
+    // The cloth lies ON the top (not inside it): two faces at the same height flicker white.
+    [0, 14, 0, 54, 1.4, 32, WOOD], [0, 15.4, 0, 50, 0.3, 28, WHITE],
+    ...[[-24, -13], [24, -13], [-24, 13], [24, 13]].map(([x, z]) => [x, 0, z, 2, 14, 2, WOOD_D]),
+  ],
+  livrug: () => [[0, 0, 0, 64, 0.6, 44, '#8E6CFF'], [0, 0.6, 0, 52, 0.3, 34, '#B9A6FF']],
+  coffee: () => [
+    [0, 6, 0, 32, 2, 18, WOOD_D],
+    ...[[-14, -7], [14, -7], [-14, 7], [14, 7]].map(([x, z]) => [x, 0, z, 2, 6, 2, WOOD]),
+  ],
+  sink: () => [
+    [0, 0, 0, 52, 15, 17, WHITE], [0, 15, 0, 54, 1, 18, '#9FD8F5'],
+    [0, 15.2, 1.6, 14, 1, 10, '#CDEBFF'], [0, 16, -5.6, 1.6, 4, 1.6, '#C0C7D1'], [0, 19, -3.2, 1.6, 1.2, 4, '#C0C7D1'],
+    [-12, 4, 8.75, 18, 8, 0.5, '#E6F6FF'], [12, 4, 8.75, 18, 8, 0.5, '#E6F6FF'],
+  ],
 };
 
 function pet({ body, light, ears, flop, bunny }) {
@@ -410,7 +431,10 @@ function pet({ body, light, ears, flop, bunny }) {
   return out;
 }
 
-/** wall: hangs on a wall. fly: floats in the air (garden bugs). small: can stand on a table or counter. */
+/**
+ * wall: hangs on a wall. fly: floats in the air (garden bugs). small: can stand on a table or counter.
+ * surface: small items can stand on its top, this high (floor tiles). flat: lies on the floor, friends walk over it.
+ */
 export const ITEM_META = {
   picture: { wall: true }, clock: { wall: true }, candle: { wall: true },
   rainbow: { wall: true }, mirror: { wall: true },
@@ -419,4 +443,6 @@ export const ITEM_META = {
   cake: { small: true }, teapot: { small: true }, watermelon: { small: true }, candy: { small: true },
   cupcake: { small: true }, soap: { small: true }, duck: { small: true }, toothbrush: { small: true },
   lotion: { small: true }, sponge: { small: true }, puzzle: {}, ball: {},
+  nightstand: { surface: 0.8 }, table: { surface: 15.7 / 16 }, coffee: { surface: 0.5 }, sink: { surface: 1 },
+  bedrug: { flat: true }, livrug: { flat: true },
 };
