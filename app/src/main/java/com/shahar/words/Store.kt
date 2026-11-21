@@ -297,6 +297,7 @@ object Store {
         levels[w.en] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
         if (correct) points += pts
         save()
+        Stats.answered(w.en, correct, if (correct) pts else 0)
     }
 
     fun recordPhonics(key: String, correct: Boolean, pts: Int) {
@@ -304,6 +305,7 @@ object Store {
         levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
         if (correct) points += pts
         save()
+        Stats.answered(key, correct, if (correct) pts else 0)
     }
 
     /** Prep answers: [delta] is the points won (or, when below zero, lost). Points never go below zero. */
@@ -312,6 +314,7 @@ object Store {
         levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
         points = maxOf(0, points + delta)
         save()
+        Stats.answered(key, correct, delta)
     }
 
     /** Ends a round. Returns the bonus points she got. */
@@ -325,6 +328,7 @@ object Store {
         }
         points += bonus
         save()
+        Stats.close(finished = true)
         return bonus
     }
 
