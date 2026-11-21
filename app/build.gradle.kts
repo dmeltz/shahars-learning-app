@@ -17,6 +17,9 @@ android {
         versionCode = buildNumber
         versionName = "1.0.$buildNumber"
         // Optional key for uploading problem reports. Empty unless the REPORT_TOKEN secret is set in GitHub.
+        // Builds from any branch except the main one are test builds (GitHub pre-releases).
+        val branch = System.getenv("GITHUB_REF_NAME") ?: ""
+        buildConfigField("boolean", "TEST_BUILD", "${branch.isNotEmpty() && branch != "claude/project-thread-65ep8k"}")
         buildConfigField("String", "REPORT_TOKEN", "\"${System.getenv("REPORT_TOKEN") ?: ""}\"")
     }
 
