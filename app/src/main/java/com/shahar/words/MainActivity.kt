@@ -81,6 +81,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Store.init(this)
+        Stats.init(this)
         Speaker.init(this)
         Reminder.schedule(this)
         WordsWidget.updateAll(this)
@@ -98,6 +99,13 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         if (intent.getBooleanExtra(EXTRA_PRACTICE, false)) startPractice = true
+    }
+
+    override fun onStop() {
+        // Leaving the app ends the round: queue its data and try to send it.
+        Stats.close(finished = false)
+        Report.flush(this)
+        super.onStop()
     }
 
     override fun onDestroy() {
@@ -129,6 +137,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
     if (Report.screen != screen.name) {
         Report.screen = screen.name
         Report.question = ""
+        Stats.close(finished = false)
     }
     Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
         when (screen) {

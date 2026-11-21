@@ -99,7 +99,7 @@ fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
                 fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp),
             )
             val q = round[index]
-            Report.question = "practice: $q"
+            Stats.shown("practice", "$index: $q")
             key(index, round) {
                 QuestionView(q) { ok, pts ->
                     Store.recordAnswer(q.word, ok, pts)
@@ -214,6 +214,7 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
                     .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                     .clickable(enabled = picked == null) {
                         chosen = opt
+                        Stats.picked(opt.en)
                         Speaker.speak(q.word.en)
                     }
                     .padding(vertical = 16.dp, horizontal = 12.dp),
@@ -256,6 +257,7 @@ fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
                             .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
                             .clickable(enabled = picked == null) {
                                 chosen = opt
+                                Stats.picked(opt.en)
                                 Speaker.speak(q.word.en)
                             }
                             .padding(vertical = 14.dp),
@@ -286,6 +288,7 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
     val check = {
         if (text.isNotBlank() && result == null) {
             result = normalize(text) == normalize(q.word.en)
+            Stats.picked(text)
             Speaker.speak(q.word.en)
         }
     }

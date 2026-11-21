@@ -368,7 +368,7 @@ fun PhonicsPractice(s: PStage, onHouse: () -> Unit, onExit: () -> Unit) {
         Text("שאלה ${index + 1} מתוך ${round.size}   ·   הרווחת ⭐ $earned",
             fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp))
         val q = round[index]
-        Report.question = "phonics ${s.title}: $q"
+        Stats.shown("phonics-${s.id}", "$index: $q")
         key(index, round) {
             PhonicsQuestion(s, q) { ok ->
                 Store.recordPhonics(pKey(s, q.item), ok, 10)
@@ -440,6 +440,7 @@ fun PhonicsQuestion(s: PStage, q: PQ, onDone: (Boolean) -> Unit) {
                                         .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                                         .clickable(enabled = picked == null) {
                                             chosen = opt
+                                            Stats.picked(opt)
                                             Speaker.speak(q.item.say)
                                         }
                                         .padding(vertical = 12.dp),
@@ -458,6 +459,7 @@ fun PhonicsQuestion(s: PStage, q: PQ, onDone: (Boolean) -> Unit) {
                                     .border(2.dp, Purple.copy(alpha = 0.3f), RoundedCornerShape(18.dp))
                                     .clickable(enabled = picked == null) {
                                         chosen = opt
+                                        Stats.picked(opt)
                                         Speaker.speak(q.item.say)
                                     }
                                     .padding(vertical = 16.dp),

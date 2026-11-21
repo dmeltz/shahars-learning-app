@@ -261,7 +261,7 @@ fun PrepRoundScreen(area: PrepArea, onExit: () -> Unit, onHouse: () -> Unit) {
                 fontSize = 15.sp, color = Ink, modifier = Modifier.padding(vertical = 8.dp),
             )
             val item = round[index]
-            Report.question = "prep ${area.title}: $item"
+            Stats.shown("prep-${area.name.lowercase()}", "$index: $item")
             key(index, round) {
                 val buddy = remember { randomBuddy() }
                 CompositionLocalProvider(LocalBuddy provides buddy) {
@@ -441,7 +441,7 @@ fun ChoiceView(q: ChoiceQ, onDone: (Boolean, Int) -> Unit) {
         q.passage?.let { PassageView(it) }
         Prompt(q.title)
         if (q.body.isNotEmpty()) BodyCard(q)
-        OptionGrid(q.options, q.answer, chosen, q.ltr) { chosen = it }
+        OptionGrid(q.options, q.answer, chosen, q.ltr) { chosen = it; Stats.picked(q.options[it]) }
         if (chosen >= 0) {
             val ok = chosen == q.answer
             // When he's right he sees the explanation only for math, where the way matters.
@@ -506,7 +506,7 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
         when (step) {
             0 -> {
                 Prompt("אֵיזֶה תַּרְגִּיל מַתְאִים לַבְּעָיָה?")
-                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it }
+                OptionGrid(exChoice.first, exChoice.second, chosen, true) { chosen = it; Stats.picked("exercise: " + exChoice.first[it]) }
                 if (chosen >= 0) {
                     val ok = chosen == exChoice.second
                     PrepFeedback(ok, 10, if (ok) "" else opHint(p.op) + "\nהתרגיל הנכון:\n${p.exercise}")
@@ -522,7 +522,7 @@ fun StoryView(p: WordProblem, onDone: (Boolean, Int) -> Unit) {
                     Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White)
                         .border(3.dp, Blue, RoundedCornerShape(20.dp)).padding(vertical = 16.dp),
                 ) { MathLine("${p.exercise} = ?", 30) }
-                OptionGrid(ansChoice.first, ansChoice.second, chosen, true) { chosen = it }
+                OptionGrid(ansChoice.first, ansChoice.second, chosen, true) { chosen = it; Stats.picked("answer: " + ansChoice.first[it]) }
                 if (chosen >= 0) {
                     val ok = chosen == ansChoice.second
                     PrepFeedback(ok, 10, p.why + "\nהתשובה: ${p.answer} ${p.unit}")

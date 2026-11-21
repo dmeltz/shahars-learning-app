@@ -167,11 +167,11 @@ object Report {
         }
     }
 
-    /** Sends waiting reports in the background (on app start, after a new key, from Settings). */
+    /** Sends waiting reports and practice data in the background (on app start, after a new key, from Settings). */
     fun flush(ctx: Context) {
         val app = ctx.applicationContext
         refreshCount(app)
-        if (pending == 0) return
+        if (pending == 0 && Stats.waiting(app) == 0) return
         scope.launch { send(app) }
     }
 
@@ -192,6 +192,15 @@ object Report {
                     }
                     put(token, "$DIR/$id.md", md.readBytes(), "Report $id")
                     md.delete()
+                } catch (e: Exception) {
+                    break
+                }
+            }
+            // Finished practice rounds (performance data), see Stats.kt.
+            for (f in Stats.outbox(ctx)) {
+                try {
+                    put(token, Stats.remotePath(f), f.readBytes(), "Practice data ${f.name}")
+                    f.delete()
                 } catch (e: Exception) {
                     break
                 }
@@ -328,8 +337,11 @@ fun ReportSettings() {
         if (Report.hasToken(ctx)) "מפתח שליחה: מוגדר ✓" else "מפתח שליחה: עוד לא הוגדר. הדיווחים נשמרים בטלפון עד שיוגדר.",
         fontSize = 15.sp, color = if (Report.hasToken(ctx)) Green else Orange,
     )
-    if (Report.pending > 0) {
-        Text("דיווחים שמחכים לשליחה: ${Report.pending}", fontSize = 15.sp, color = Ink)
+    Text("גם נתוני התרגול (כל תשובה, נכון/לא, כמה זמן לקח) נשלחים לתיקיית stats באותו ריפו, כדי שאפשר יהיה לנתח ולהתאים את התרגול.", fontSize = 15.sp, color = Ink)
+    val statsWaiting = remember(Report.pending) { Stats.waiting(ctx) }
+    if (statsWaiting > 0) Text("סבבי תרגול שמחכים לשליחה: $statsWaiting", fontSize = 15.sp, color = Ink)
+    if (Report.pending > 0 || statsWaiting > 0) {
+        if (Report.pending > 0) Text("דיווחים שמחכים לשליחה: ${Report.pending}", fontSize = 15.sp, color = Ink)
         TextButton(onClick = { Report.flush(ctx) }) { Text("לשלוח עכשיו 📤", fontSize = 16.sp) }
     }
     if (editing) {
