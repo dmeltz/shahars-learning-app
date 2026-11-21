@@ -92,7 +92,7 @@ object Reminder {
             .setSmallIcon(R.drawable.ic_star)
             .setContentTitle(Store.daysText())
             .setContentText(
-                if (Store.isTomer && Store.englishPaused) "בוא נתאמן למבחן ונאסוף נקודות ⭐"
+                if (Store.prepFirst) "בוא נתאמן למבחן ונאסוף נקודות ⭐"
                 else Store.g("בואי לתרגל כמה מילים ולאסוף נקודות ⭐", "בוא לתרגל כמה מילים ולאסוף נקודות ⭐")
             )
             .setContentIntent(practiceIntent(ctx))

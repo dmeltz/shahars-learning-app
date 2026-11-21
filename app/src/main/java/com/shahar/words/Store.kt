@@ -128,6 +128,12 @@ object Store {
     var starter by mutableStateOf("boni")
     /** A parent can pause English for Tomer so the app is all about the gifted test. */
     var englishPaused by mutableStateOf(false)
+    /**
+     * Parent's device setup. null = shared device (anyone can pick a player).
+     * SHAHAR = Shahar's phone, English only. TOMER = Tomer's tablet, gifted-test prep only.
+     * Kept in the "profiles" file, so it never touches either kid's points or house.
+     */
+    var deviceLock by mutableStateOf<String?>(null)
 
     val isTomer: Boolean get() = profile == TOMER
     val name: String get() = if (isTomer) "תומר" else "שחר"
@@ -142,12 +148,14 @@ object Store {
         if (::prefs.isInitialized) return
         appContext = ctx.applicationContext
         meta = appContext.getSharedPreferences("profiles", Context.MODE_PRIVATE)
-        var cur = meta.getString("current", null)
+        deviceLock = meta.getString("deviceLock", null)?.takeIf { it == SHAHAR || it == TOMER }
+        var cur = deviceLock ?: meta.getString("current", null)
         // Shahar's phone already has her data: keep going straight to her, no picker.
         if (cur == null && appContext.getSharedPreferences(SHAHAR, Context.MODE_PRIVATE).contains("points")) {
             cur = SHAHAR
             meta.edit().putString("current", cur).apply()
         }
+        if (cur != null && cur != meta.getString("current", null)) meta.edit().putString("current", cur).apply()
         profile = cur
         load(cur ?: SHAHAR)
     }
@@ -404,8 +412,22 @@ object Store {
         save()
     }
 
-    /** Tomer's test-prep screen is the main thing while English is paused. */
-    val prepFirst: Boolean get() = isTomer && englishPaused
+    /** Parent sets whose device this is (null = shared). Switches to that kid; nobody's data changes. */
+    @Synchronized
+    fun lockDevice(p: String?) {
+        meta.edit().putString("deviceLock", p).apply()
+        deviceLock = p
+        if (p != null && profile != p) choose(p) else WordsWidget.updateAll(appContext)
+    }
+
+    /** True when the player can't be switched on this device. */
+    val locked: Boolean get() = deviceLock != null
+
+    /** Tomer's tablet setup turns English off completely (no parent pause needed). */
+    val englishLockedOff: Boolean get() = isTomer && deviceLock == TOMER
+
+    /** Tomer's test-prep screen is the main thing while English is paused or locked off. */
+    val prepFirst: Boolean get() = isTomer && (englishPaused || deviceLock == TOMER)
 
     fun setReminder(h: Int, m: Int) {
         reminderHour = h

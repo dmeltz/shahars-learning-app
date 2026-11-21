@@ -118,6 +118,11 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             onStarted()
         }
     }
+    // After a parent sets the device to a kid who hasn't picked a first friend yet.
+    LaunchedEffect(Store.profile) {
+        if (Store.profile != null && Store.needsStarter && screen != Screen.Pick) screen = Screen.Pick
+        if (Store.locked && screen == Screen.Who) screen = Screen.Home
+    }
     BackHandler(enabled = screen != Screen.Home && Store.profile != null && !Store.needsStarter) { screen = Screen.Home }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
@@ -225,7 +230,7 @@ fun HomeScreen(go: (Screen) -> Unit) {
             BigButton("🧠 הכנה למבחן המחוננים", Color(0xFF3F7CF5)) { go(Screen.Prep) }
         }
         if (Store.prepFirst) {
-            Text("האנגלית בהפסקה עד אחרי המבחן. עכשיו מתאמנים למבחן! 🧠", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
+            Text(if (Store.englishLockedOff) "עכשיו מתאמנים למבחן המחוננים! 🧠" else "האנגלית בהפסקה עד אחרי המבחן. עכשיו מתאמנים למבחן! 🧠", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
         } else Column(Modifier.fillMaxWidth()) {
             Text(Store.g("את כבר יודעת", "אתה כבר יודע") + " $known מתוך ${Store.words.size} מילים", fontSize = 16.sp, color = Ink)
             Spacer(Modifier.height(6.dp))
@@ -248,7 +253,7 @@ fun HomeScreen(go: (Screen) -> Unit) {
             if (!Store.prepFirst) BigButton("כל המילים 📖", Blue, Modifier.weight(1f)) { go(Screen.Words) }
             BigButton("הגדרות ⚙️", Color(0xFF9A8FB0), Modifier.weight(1f)) { go(Screen.Settings) }
         }
-        TextButton(onClick = { go(Screen.Who) }) {
+        if (!Store.locked) TextButton(onClick = { go(Screen.Who) }) {
             Text("👤 לא ${Store.name}? החלפת שחקן", fontSize = 16.sp, color = Ink)
         }
     }
@@ -302,7 +307,9 @@ fun SettingsScreen(onBack: () -> Unit) {
         if (Store.hasExam && Store.isTomer) {
             TextButton(onClick = { Store.setExam(null) }) { Text("בלי מבחן (להסתיר את הספירה לאחור)", fontSize = 16.sp) }
         }
-        if (Store.isTomer) {
+        Spacer(Modifier.height(10.dp))
+        DeviceSettings()
+        if (Store.isTomer && !Store.englishLockedOff) {
             Spacer(Modifier.height(10.dp))
             GiftedSettings()
         }
@@ -438,6 +445,64 @@ fun PickStarterScreen(onPicked: () -> Unit) {
             }
         }
         Text("את השאר אפשר לקנות אחר כך בחנות עם נקודות ⭐", fontSize = 15.sp, color = Ink, textAlign = TextAlign.Center)
+    }
+}
+
+/** Parent-only: whose device this is. Once set, the kid can't switch player or turn on the other track. */
+@Composable
+fun DeviceSettings() {
+    val ctx = LocalContext.current
+    var asking by remember { mutableStateOf(false) }
+    var choosing by remember { mutableStateOf(false) }
+    Text("הגדרת המכשיר (להורים) 🔒", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+    Text(
+        when (Store.deviceLock) {
+            SHAHAR -> "זה המכשיר של שחר: רק הכנה למבחן באנגלית. אי אפשר להחליף שחקן."
+            TOMER -> "זה המכשיר של תומר: רק הכנה למבחן המחוננים. אנגלית לא זמינה כרגע. אי אפשר להחליף שחקן."
+            else -> "מכשיר משותף: אפשר להחליף בין שחר לתומר."
+        },
+        fontSize = 16.sp, color = Ink,
+    )
+    BigButton("שינוי הגדרת המכשיר", Color(0xFF6B5B95)) { asking = true }
+    if (asking) {
+        ParentGate(onDismiss = { asking = false }) {
+            asking = false
+            choosing = true
+        }
+    }
+    if (choosing) {
+        AlertDialog(
+            onDismissRequest = { choosing = false },
+            title = { Text("של מי המכשיר הזה?", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("הנקודות, הבית והחברים של כל ילד נשמרים בכל מקרה.", fontSize = 15.sp)
+                    listOf(
+                        Triple(SHAHAR, "המכשיר של שחר 🌸\nרק אנגלית", Pink),
+                        Triple(TOMER, "המכשיר של תומר 🚀\nרק מבחן המחוננים", Blue),
+                        Triple(null, "מכשיר משותף\nאפשר להחליף שחקן", Color(0xFF9A8FB0)),
+                    ).forEach { (p, label, color) ->
+                        Button(
+                            onClick = {
+                                choosing = false
+                                Store.lockDevice(p)
+                                Reminder.schedule(ctx)
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = ButtonDefaults.buttonColors(containerColor = color),
+                        ) {
+                            Text(
+                                (if (Store.deviceLock == p) "✓ " else "") + label,
+                                fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center,
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { choosing = false }) { Text("ביטול") } },
+        )
     }
 }
 
