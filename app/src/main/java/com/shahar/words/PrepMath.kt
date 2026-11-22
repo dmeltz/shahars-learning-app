@@ -70,9 +70,16 @@ private fun subExplain(a: Int, b: Int): String {
     return "קודם מורידים עשרות:\n$a − $t = ${a - t}\nואז אחדות:\n${a - t} − ${b % 10} = $d"
 }
 
-private fun mulExplain(a: Int, b: Int): String =
-    if (a <= 5) "זה $a פעמים $b:\n" + List(a) { "$b" }.joinToString(" + ") + " = ${a * b}"
+private fun mulExplain(a: Int, b: Int): String {
+    // Count in jumps of the easy number (10, 5 or 2) when there is one: 5 × 8 -> 5, 10, 15 ... 40.
+    val step = listOf(10, 5, 2).firstOrNull { it == a || it == b }
+    if (step != null && a * b / step <= 10) {
+        val times = a * b / step
+        return "קופצים $times פעמים ב-$step:\n" + (1..times).joinToString(", ") { "${it * step}" } + "\nאז $a × $b = ${a * b}"
+    }
+    return if (a <= 5) "זה $a פעמים $b:\n" + List(a) { "$b" }.joinToString(" + ") + " = ${a * b}"
     else "$a × $b = ${a * b}\nאפשר גם הפוך:\n$b × $a = ${a * b}"
+}
 
 private fun addQ(): ChoiceQ {
     return if (Random.nextBoolean()) {
