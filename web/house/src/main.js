@@ -805,6 +805,9 @@ function startHouse() {
     b.addEventListener('click', (e) => { e.stopPropagation(); fn(); });
     document.getElementById('buttons').appendChild(b);
   };
+  // 🧱: walls always up, or lowered automatically when they hide the room (the default). Remembered on the device.
+  let wallsUp = false;
+  try { wallsUp = localStorage.getItem('wallsUp') === '1'; } catch (e) { /* no storage */ }
   btn('➕', 'zoom in', () => { goal.dist = Math.max(4, goal.dist * 0.75); });
   btn('➖', 'zoom out', () => { goal.dist = Math.min(Math.max(34, span * 1.6), goal.dist * 1.33); });
   btn('🔄', 'turn', () => { goal.yaw += Math.PI / 2; });
@@ -815,6 +818,13 @@ function startHouse() {
     goal.dist = Math.max(27, span * 1.15);
     goal.pitch = Math.max(goal.pitch, 0.9);
   });
+  btn('🧱', 'walls', () => {
+    wallsUp = !wallsUp;
+    try { localStorage.setItem('wallsUp', wallsUp ? '1' : '0'); } catch (e) { /* no storage */ }
+    wallBtn.classList.toggle('on', wallsUp);
+  });
+  const wallBtn = document.getElementById('buttons').lastElementChild;
+  wallBtn.classList.toggle('on', wallsUp);
 
   // ---------- Animation loop ----------
   const clock = new THREE.Clock();
@@ -839,7 +849,7 @@ function startHouse() {
     cam.dist += (goal.dist - cam.dist) * k;
     cam.target.lerp(goal.target, k);
     placeCamera();
-    updateWalls(world, camera.position, cam.target, dt);
+    updateWalls(world, camera.position, cam.target, dt, wallsUp);
 
     // Wall items hide when their wall is lowered.
     for (const rec of items.values()) {
