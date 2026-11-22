@@ -356,17 +356,17 @@ object Store {
     fun recordAnswer(w: Word, correct: Boolean, pts: Int) {
         val l = level(w)
         levels[w.en] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
-        if (correct) points += pts
+        points = maxOf(0, points + pts)
         save()
-        Stats.answered(w.en, correct, if (correct) pts else 0)
+        Stats.answered(w.en, correct, pts)
     }
 
     fun recordPhonics(key: String, correct: Boolean, pts: Int) {
         val l = levels[key] ?: 0
         levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
-        if (correct) points += pts
+        points = maxOf(0, points + pts)
         save()
-        Stats.answered(key, correct, if (correct) pts else 0)
+        Stats.answered(key, correct, pts)
     }
 
     /** Prep answers: [delta] is the points won (or, when below zero, lost). Points never go below zero. */
@@ -386,6 +386,13 @@ object Store {
      * The daily streak bonus and the shop prices are the same for both.
      */
     fun pts(base: Int): Int = if (isTomer) base else (base + 2) / 4
+
+    /**
+     * Points Shahar loses for a wrong pick on a question with options (multiple choice, phonics),
+     * like Tomer's prep questions: a quarter of what a right answer gives, at least 1.
+     * Tomer's English practice (paused for now) stays without a penalty.
+     */
+    fun miss(base: Int): Int = if (isTomer) 0 else maxOf(1, penalty(pts(base)))
 
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {

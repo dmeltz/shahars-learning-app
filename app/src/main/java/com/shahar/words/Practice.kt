@@ -112,10 +112,8 @@ fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
             key(index, round) {
                 QuestionView(q) { ok, pts ->
                     Store.recordAnswer(q.word, ok, pts)
-                    if (ok) {
-                        correct++
-                        earned += pts
-                    }
+                    if (ok) correct++
+                    earned += pts
                     if (index + 1 == round.size) bonus = Store.finishSession()
                     index++
                 }
@@ -172,9 +170,9 @@ fun WordCard(text: String, english: Boolean = false, note: String = "", emoji: S
 }
 
 @Composable
-fun Feedback(ok: Boolean, pts: Int, w: Word) {
+fun Feedback(ok: Boolean, pts: Int, w: Word, lost: Int = 0) {
     val msg = remember(ok) {
-        if (ok) "${(if (Store.isTomer) PRAISE_M else PRAISE_F).random()} +$pts ⭐" else "לא נורא! ${w.emoji} ${w.en} = ${w.he}. בפעם הבאה זה יצליח!".replace("  ", " ")
+        if (ok) "${(if (Store.isTomer) PRAISE_M else PRAISE_F).random()} +$pts ⭐" else "לא נורא!${if (lost > 0) " (−$lost ⭐)" else ""} ${w.emoji} ${w.en} = ${w.he}. בפעם הבאה זה יצליח!".replace("  ", " ")
     }
     BoniSays(msg, if (ok) BoniMood.CHEER else BoniMood.HAPPY, if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00))
 }
@@ -232,8 +230,8 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, Store.pts(10), q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else 0) }
+            Feedback(ok, Store.pts(10), q.word, Store.miss(10))
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else -Store.miss(10)) }
         }
     }
 }
@@ -282,8 +280,8 @@ fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, Store.pts(10), q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else 0) }
+            Feedback(ok, Store.pts(10), q.word, Store.miss(10))
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else -Store.miss(10)) }
         }
     }
 }
