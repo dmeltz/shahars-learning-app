@@ -378,10 +378,19 @@ object Store {
         Stats.answered(key, correct, delta)
     }
 
+    /**
+     * Points for one of the English practice / phonics answers, or the end-of-round bonus.
+     * Shahar answers her questions in a few seconds, while Tomer's prep questions take him
+     * 20 to 60 seconds, so Shahar gets about a quarter of the base points (10 -> 3, 15 -> 4,
+     * 5 -> 1, 20 -> 5) to keep the two kids' points per minute of practice close.
+     * The daily streak bonus and the shop prices are the same for both.
+     */
+    fun pts(base: Int): Int = if (isTomer) base else (base + 2) / 4
+
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {
         val t = today()
-        var bonus = 20
+        var bonus = pts(20)
         if (lastPracticeDay != t) {
             streak = if (lastPracticeDay == t - 1) streak + 1 else 1
             bonus += 30 + minOf(streak, 5) * 5

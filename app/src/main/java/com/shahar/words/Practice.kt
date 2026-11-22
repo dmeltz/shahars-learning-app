@@ -192,7 +192,7 @@ fun FlashCard(q: Q, onDone: (Boolean, Int) -> Unit) {
             // The picture is shown only after flipping, so the front makes him listen or read first.
             WordCard(q.word.he, emoji = q.word.emoji)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
+                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, Store.pts(5)) }
                 BigButton("עוד לא", Orange, Modifier.weight(1f)) { onDone(false, 0) }
             }
         }
@@ -232,8 +232,8 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, 10, q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) 10 else 0) }
+            Feedback(ok, Store.pts(10), q.word)
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else 0) }
         }
     }
 }
@@ -282,8 +282,8 @@ fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, 10, q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) 10 else 0) }
+            Feedback(ok, Store.pts(10), q.word)
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else 0) }
         }
     }
 }
@@ -294,7 +294,7 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
     var result by remember { mutableStateOf<Boolean?>(null) }
     var hint by remember { mutableStateOf(false) }
     var ilHint by remember { mutableStateOf(false) }
-    val pts = if (hint) 10 else 15
+    val pts = Store.pts(if (hint) 10 else 15)
     val check = {
         if (text.isNotBlank() && result == null) {
             Stats.picked(text)
