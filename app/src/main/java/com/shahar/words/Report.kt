@@ -101,6 +101,7 @@ object Report {
     fun setToken(ctx: Context, t: String) {
         prefs(ctx).edit().putString("token", clean(t)).apply()
         flush(ctx)
+        Store.profile?.let { Sync.now(it) }
     }
 
     private fun queue(ctx: Context) = File(ctx.filesDir, "reports").apply { mkdirs() }

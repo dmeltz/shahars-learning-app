@@ -171,6 +171,7 @@ object Store {
     fun init(ctx: Context) {
         if (::prefs.isInitialized) return
         appContext = ctx.applicationContext
+        Sync.init(appContext)
         meta = appContext.getSharedPreferences("profiles", Context.MODE_PRIVATE)
         deviceLock = meta.getString("deviceLock", null)?.takeIf { it == SHAHAR || it == TOMER }
         parentDevice = deviceLock == null && meta.getBoolean("parentDevice", false)
@@ -191,6 +192,16 @@ object Store {
         meta.edit().putString("current", p).apply()
         load(p)
         WordsWidget.updateAll(appContext)
+        Sync.now(p)
+    }
+
+    /** Sync.kt took this kid's game from another device: show it if this kid is on screen. */
+    @Synchronized
+    fun reloadFromSync(p: String) {
+        if (::prefs.isInitialized && profile == p) {
+            load(p)
+            WordsWidget.updateAll(appContext)
+        }
     }
 
     private fun load(p: String) {
@@ -293,6 +304,7 @@ object Store {
             .putBoolean("englishPaused", englishPaused)
             .apply()
         WordsWidget.updateAll(appContext)
+        profile?.let { Sync.changed(it) }
     }
 
     fun today(): Long = LocalDate.now().toEpochDay()

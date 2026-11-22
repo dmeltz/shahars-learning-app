@@ -101,10 +101,17 @@ class MainActivity : ComponentActivity() {
         if (intent.getBooleanExtra(EXTRA_PRACTICE, false)) startPractice = true
     }
 
+    override fun onStart() {
+        super.onStart()
+        // Maybe she played on her other device: take the newest game.
+        Store.profile?.let { Sync.now(it) }
+    }
+
     override fun onStop() {
         // Leaving the app ends the round: queue its data and try to send it.
         Stats.close(finished = false)
         Report.flush(this)
+        Sync.flushPending()
         super.onStop()
     }
 
@@ -342,6 +349,8 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         UpdateSection()
+        Spacer(Modifier.height(10.dp))
+        SyncSettings()
         Spacer(Modifier.height(10.dp))
         ReportSettings()
         Spacer(Modifier.height(60.dp))
