@@ -253,11 +253,12 @@ function buildWalls(world, colors) {
  * Lowers the walls that stand between the camera and the room we look at,
  * like a doll's house, so the room is always visible.
  */
-export function updateWalls(world, camPos, focus, dt) {
+export function updateWalls(world, camPos, focus, dt, keepUp = false) {
   for (const w of world.walls) {
     const cam = w.axis === 'z' ? camPos.z : camPos.x;
     const f = w.axis === 'z' ? focus.z : focus.x;
-    let lower = (cam - w.c) * (f - w.c) < 0;
+    // keepUp: the kid chose "walls always up" with the 🧱 button.
+    let lower = !keepUp && (cam - w.c) * (f - w.c) < 0;
     // Walls of the focused room that face the camera are lowered too, even if the camera is very high.
     w.lowered = lower;
     const target = lower ? 0.12 : 1;

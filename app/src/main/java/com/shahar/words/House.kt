@@ -278,6 +278,10 @@ fun ShopCard(
     onBuy: () -> Unit,
 ) {
     val canBuy = !owned && Store.points >= price
+    var confirm by remember { mutableStateOf(false) }
+    if (confirm) {
+        ConfirmBuyDialog(he, price, onDismiss = { confirm = false }) { confirm = false; onBuy() }
+    }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(swatch ?: Color.White)
             .border(2.dp, if (owned) Green else Purple.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
@@ -302,8 +306,30 @@ fun ShopCard(
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
                 .background(if (owned) Color.Transparent else if (canBuy) Orange else Color(0xFFEDE7F6))
-                .clickable(enabled = !owned) { onBuy() }
+                // A purchase needs a second "yes" (no buying by a mis-tap). Without enough points, onBuy just says so.
+                .clickable(enabled = !owned) { if (canBuy) confirm = true else onBuy() }
                 .padding(vertical = 8.dp),
         )
     }
+}
+
+/** "Buy X for N points?" with yes / not now. Shown before every purchase. */
+@Composable
+fun ConfirmBuyDialog(name: String, price: Int, onDismiss: () -> Unit, onYes: () -> Unit) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("לקנות $name? 🛍️", fontWeight = FontWeight.Bold) },
+        text = {
+            Text(
+                "זה עולה ⭐ $price.\nיישארו לך ⭐ ${Store.points - price}.",
+                fontSize = 17.sp, color = Ink,
+            )
+        },
+        confirmButton = {
+            androidx.compose.material3.TextButton(onClick = onYes) { Text("כן, לקנות ✓", fontSize = 18.sp, fontWeight = FontWeight.Bold) }
+        },
+        dismissButton = {
+            androidx.compose.material3.TextButton(onClick = onDismiss) { Text("לא עכשיו", fontSize = 18.sp) }
+        },
+    )
 }
