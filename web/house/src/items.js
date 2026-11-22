@@ -390,6 +390,52 @@ export const ITEM_MODELS = {
     [0, 21, 0, 4, 1.5, 4, '#BDE7FF', 'glass'],
     [4, 12, 0, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [-4, 12, 0, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [0, 12, 4, 1.2, 3, 1.2, '#BDE7FF', 'glass'], [0, 12, -4, 1.2, 3, 1.2, '#BDE7FF', 'glass'],
   ],
+  // More sofas and rugs (Shahar asked for different sizes and shapes).
+  sofa_corner: () => [
+    // An L-shaped sofa: a long part with a back and a chaise that comes forward on the right.
+    [0, 0, 0, 46, 2, 14, WOOD_D], [15, 0, 13, 16, 2, 12, WOOD_D],
+    [0, 2, 0, 44, 5, 14, '#5B6BD6'], [15, 2, 13, 14, 5, 12, '#5B6BD6'],
+    [-14, 7, 1.5, 14, 2.5, 10, '#8090F0'], [0, 7, 1.5, 13.5, 2.5, 10, '#8090F0'], [14.5, 7, 6, 13, 2.5, 19, '#8090F0'],
+    [0, 7, -5.5, 44, 10, 3, '#5B6BD6'],
+    [-14, 9.5, -3.4, 13, 6, 1.6, '#8090F0'], [0, 9.5, -3.4, 13, 6, 1.6, '#8090F0'], [14.5, 9.5, -3.4, 13, 6, 1.6, '#8090F0'],
+    [-22.5, 2, 0, 3, 9, 14, '#4655B8'], [22.5, 2, 6.5, 3, 9, 27, '#4655B8'],
+    [-14, 9.5, 2, 5, 5, 2, '#FFD43B'], [14, 9.5, 2, 5, 5, 2, '#FF8FB1'],
+  ],
+  loveseat: () => [
+    [0, 0, 0, 26, 2, 13, WOOD_D],
+    [0, 2, 0, 24, 5, 13, '#FF7FAE'],
+    [-5.75, 7, 1.5, 10.5, 2.5, 9, '#FFA6C8'], [5.75, 7, 1.5, 10.5, 2.5, 9, '#FFA6C8'],
+    [0, 7, -5, 24, 9, 3, '#FF7FAE'],
+    [-12.5, 2, 0, 3, 8, 13, '#E85F92'], [12.5, 2, 0, 3, 8, 13, '#E85F92'],
+    [0, 9.5, 2, 5, 5, 2, '#FFFFFF'],
+  ],
+  armchair: () => [
+    ...[[-6, -5], [6, -5], [-6, 5], [6, 5]].map(([x, z]) => [x, 0, z, 1.6, 2, 1.6, WOOD_D]),
+    [0, 2, 0, 16, 5, 13, '#FFC23B'],
+    [0, 7, 1.5, 11, 2.5, 9, '#FFDA7A'],
+    [0, 7, -5, 16, 11, 3, '#FFC23B'],
+    [-6.5, 7, 0.5, 3, 4, 12, '#E8A91F'], [6.5, 7, 0.5, 3, 4, 12, '#E8A91F'],
+  ],
+  beanbag: () => [
+    ...ring(0, 0, 0, 8, 3, '#FF8A3D'),
+    ...ring(0, 3, 0, 7, 3, '#FF8A3D'),
+    ...ring(0, 6, -1, 5, 2, '#FFA866'),
+    [0, 6, -4.5, 10, 6, 4, '#FF8A3D'],
+  ],
+  rug_round: () => [...ring(0, 0, 0, 20, 0.6, '#5CC0F7'), ...ring(0, 0.6, 0, 15, 0.3, '#BDE7FF'), ...ring(0, 0.9, 0, 7, 0.2, '#FFFFFF')],
+  rug_stripes: () => [
+    [0, 0, 0, 56, 0.6, 38, '#2BB5A5'],
+    ...[-12, -4, 4, 12].map((z, i) => [0, 0.6, z, 50, 0.3, 4, ['#FFD43B', '#FFFFFF', '#FF8FB1', '#FFFFFF'][i]]),
+  ],
+  rug_heart: () => {
+    // Two round tops and a point towards the front.
+    const out = [...ring(-7, 0, -6, 9, 0.6, '#FF4F7B'), ...ring(7, 0, -6, 9, 0.6, '#FF4F7B')];
+    for (let z = -6; z < 14; z += 2) out.push([0, 0, z + 1, Math.max(2, 32 - (z + 6) * 1.6), 0.6, 2, '#FF4F7B']);
+    out.push(...ring(-8, 0.6, -8, 3, 0.3, '#FFB8CB'));
+    return out;
+  },
+  rug_rainbow: () => ['#FF5A5A', '#FF9F43', '#FFD43B', '#5BD67A', '#5CC0F7', '#8E6CFF']
+    .map((c, i) => [0, 0, -15 + i * 6, 54, 0.6, 6, c]),
   // The starter furniture (the move-in gift). It used to be built into the rooms.
   bedrug: () => [[0, 0, 0, 52, 0.6, 36, '#FFB8D4'], [0, 0.6, 0, 44, 0.3, 28, '#FFD1E3']],
   nightstand: () => [
@@ -445,4 +491,5 @@ export const ITEM_META = {
   lotion: { small: true }, sponge: { small: true }, puzzle: {}, ball: {},
   nightstand: { surface: 0.8 }, table: { surface: 15.7 / 16 }, coffee: { surface: 0.5 }, sink: { surface: 1 },
   bedrug: { flat: true }, livrug: { flat: true },
+  rug_round: { flat: true }, rug_stripes: { flat: true }, rug_heart: { flat: true }, rug_rainbow: { flat: true },
 };

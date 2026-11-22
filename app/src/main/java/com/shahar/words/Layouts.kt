@@ -17,6 +17,10 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -101,6 +105,16 @@ fun LayoutCard(l: HouseLayout, onDone: () -> Unit) {
     val owned = Store.ownsLayout(l)
     val current = Store.layoutChosen && Store.layout == l.id
     val canBuy = !owned && Store.points >= l.price
+    var confirm by remember { mutableStateOf(false) }
+    if (confirm) {
+        ConfirmBuyDialog(l.he, l.price, onDismiss = { confirm = false }) {
+            confirm = false
+            if (Store.buyLayout(l)) {
+                android.widget.Toast.makeText(ctx, "ברוכים הבאים ל${l.he}! 🎉", android.widget.Toast.LENGTH_SHORT).show()
+                onDone()
+            }
+        }
+    }
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(Color.White)
             .border(if (current) 4.dp else 2.dp, if (current) Green else Purple.copy(alpha = 0.3f), RoundedCornerShape(20.dp))
@@ -126,9 +140,8 @@ fun LayoutCard(l: HouseLayout, onDone: () -> Unit) {
                     if (owned) {
                         Store.moveToLayout(l.id)
                         onDone()
-                    } else if (Store.buyLayout(l)) {
-                        android.widget.Toast.makeText(ctx, "ברוכים הבאים ל${l.he}! 🎉", android.widget.Toast.LENGTH_SHORT).show()
-                        onDone()
+                    } else if (canBuy) {
+                        confirm = true
                     } else {
                         android.widget.Toast.makeText(ctx, Store.g("עוד קצת נקודות ותוכלי לקנות 💪", "עוד קצת נקודות ותוכל לקנות 💪"), android.widget.Toast.LENGTH_SHORT).show()
                     }

@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -76,6 +77,14 @@ private val PRAISE_M = listOf("מעולה!", "כל הכבוד!", "אלוף!", "�
 fun normalize(s: String): String = s.trim().lowercase()
     .replace('’', '\'').replace('`', '\'')
     .replace(".", "").replace(Regex("\\s+"), " ")
+
+/** True when the only mistake is a small l typed for a capital I (or the other way round): they look the same. */
+fun isIlMixup(typed: String, answer: String): Boolean {
+    val t = normalize(typed)
+    val a = normalize(answer)
+    return t != a && t.length == a.length &&
+        t.indices.all { t[it] == a[it] || (t[it] == 'l' && a[it] == 'i') || (t[it] == 'i' && a[it] == 'l') }
+}
 
 @Composable
 fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
@@ -284,12 +293,18 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
     var text by remember { mutableStateOf("") }
     var result by remember { mutableStateOf<Boolean?>(null) }
     var hint by remember { mutableStateOf(false) }
+    var ilHint by remember { mutableStateOf(false) }
     val pts = if (hint) 10 else 15
     val check = {
         if (text.isNotBlank() && result == null) {
-            result = normalize(text) == normalize(q.word.en)
             Stats.picked(text)
-            Speaker.speak(q.word.en)
+            if (!ilHint && isIlMixup(text, q.word.en)) {
+                // Not a real spelling mistake: let her fix the letter once.
+                ilHint = true
+            } else {
+                result = normalize(text) == normalize(q.word.en)
+                Speaker.speak(q.word.en)
+            }
         }
     }
     Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -306,7 +321,8 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
                 value = text,
                 onValueChange = { if (result == null) text = it },
                 singleLine = true,
-                textStyle = TextStyle(fontSize = 26.sp, color = Ink),
+                // Monospace shows the difference between I (capital i) and l (small L).
+                textStyle = TextStyle(fontSize = 26.sp, color = Ink, fontFamily = FontFamily.Monospace),
                 keyboardOptions = KeyboardOptions(
                     capitalization = KeyboardCapitalization.None,
                     keyboardType = KeyboardType.Ascii,
@@ -317,6 +333,13 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
             )
         }
         val r = result
+        if (r == null && ilHint) {
+            Text(
+                "כמעט! כתבת l (אֶל קטנה), ופה צריך I (אַיי גדולה). תקני ונסי שוב 🙂",
+                fontSize = 18.sp, color = Purple, fontWeight = FontWeight.Bold,
+                modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center,
+            )
+        }
         if (r == null) {
             BigButton("בדיקה ✓", Purple, enabled = text.isNotBlank()) { check() }
             if (!hint) {
@@ -327,7 +350,7 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
         } else {
             Feedback(r, pts, q.word)
             if (!r) {
-                Text("כתבת: $text", fontSize = 16.sp, color = Ink,
+                Text("כתבת: $text", fontSize = 16.sp, color = Ink, fontFamily = FontFamily.Monospace,
                     modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
             }
             BigButton("הבא", Purple) { onDone(r, if (r) pts else 0) }
