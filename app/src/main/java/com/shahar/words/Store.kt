@@ -389,10 +389,10 @@ object Store {
 
     /**
      * Points Shahar loses for a wrong pick on a question with options (multiple choice, phonics),
-     * the same 3 points Tomer loses on a wrong prep question (Daniel's choice).
+     * like Tomer's prep questions: a quarter of what a right answer gives, at least 1.
      * Tomer's English practice (paused for now) stays without a penalty.
      */
-    fun miss(base: Int): Int = if (isTomer) 0 else penalty(base)
+    fun miss(base: Int): Int = if (isTomer) 0 else maxOf(1, penalty(pts(base)))
 
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {
