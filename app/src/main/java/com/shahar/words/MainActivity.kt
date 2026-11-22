@@ -105,11 +105,13 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         // Maybe she played on her other device: take the newest game.
         Store.profile?.let { Sync.now(it) }
+        Stats.resumeScreen()
     }
 
     override fun onStop() {
         // Leaving the app ends the round: queue its data and try to send it.
         Stats.close(finished = false)
+        Stats.pauseScreen()
         Report.flush(this)
         Sync.flushPending()
         super.onStop()
@@ -150,6 +152,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
         Report.screen = screen.name
         Report.question = ""
         Stats.close(finished = false)
+        Stats.screen(screen.name)
     }
     Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
         when (screen) {
