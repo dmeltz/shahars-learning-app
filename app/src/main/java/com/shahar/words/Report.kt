@@ -410,7 +410,6 @@ fun ReportDialog(shot: Bitmap?, onDismiss: () -> Unit, onSend: (String, String) 
 @Composable
 fun ReportSettings() {
     val ctx = LocalContext.current
-    var asking by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var key by remember { mutableStateOf("") }
     LaunchedEffect(Unit) { Report.refreshCount(ctx); Report.loadStatus(ctx) }
@@ -445,12 +444,6 @@ fun ReportSettings() {
             editing = false
         }
     } else {
-        TextButton(onClick = { asking = true }) { Text("הגדרת מפתח שליחה (להורים) 🔑", fontSize = 16.sp) }
-    }
-    if (asking) {
-        ParentGate(onDismiss = { asking = false }) {
-            asking = false
-            editing = true
-        }
+        TextButton(onClick = { editing = true }) { Text("הגדרת מפתח שליחה 🔑", fontSize = 16.sp) }
     }
 }

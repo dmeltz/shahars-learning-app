@@ -183,6 +183,7 @@ object Store {
         meta = appContext.getSharedPreferences("profiles", Context.MODE_PRIVATE)
         deviceLock = meta.getString("deviceLock", null)?.takeIf { it == SHAHAR || it == TOMER }
         parentDevice = deviceLock == null && meta.getBoolean("parentDevice", false)
+        parentGateMath = meta.getBoolean("parentGateMath", false)
         var cur = deviceLock ?: meta.getString("current", null)
         // Shahar's phone already has her data: keep going straight to her, no picker.
         if (cur == null && appContext.getSharedPreferences(SHAHAR, Context.MODE_PRIVATE).contains("points")) {
@@ -544,6 +545,32 @@ object Store {
         }
         if (p != null && profile != p) choose(p) else WordsWidget.updateAll(appContext)
     }
+
+    /** How the parent area is locked on this device: the password (default) or a sum. Kept in "profiles". */
+    var parentGateMath by mutableStateOf(false)
+
+    fun setParentGateMath(math: Boolean) {
+        parentGateMath = math
+        meta.edit().putBoolean("parentGateMath", math).apply()
+    }
+
+    /** Parent gift: adds [n] points to [p]'s game, whether or not that kid is on screen. */
+    @Synchronized
+    fun addPoints(p: String, n: Int) {
+        if (n <= 0) return
+        if (profile == p) {
+            points += n
+            save()
+        } else {
+            val f = appContext.getSharedPreferences(p, Context.MODE_PRIVATE)
+            f.edit().putInt("points", f.getInt("points", 0) + n).commit()
+            Sync.changed(p)
+        }
+    }
+
+    /** Points saved for [p] on this device (the one on screen, or the other kid's file). */
+    fun pointsOf(p: String): Int =
+        if (profile == p) points else appContext.getSharedPreferences(p, Context.MODE_PRIVATE).getInt("points", 0)
 
     /** True when the player can't be switched on this device. */
     val locked: Boolean get() = deviceLock != null
