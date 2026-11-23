@@ -549,7 +549,7 @@ object Store {
     /** How the parent area is locked on this device: the password (default) or a sum. Kept in "profiles". */
     var parentGateMath by mutableStateOf(false)
 
-    fun setParentGateMath(math: Boolean) {
+    fun chooseParentGateMath(math: Boolean) {
         parentGateMath = math
         meta.edit().putBoolean("parentGateMath", math).apply()
     }

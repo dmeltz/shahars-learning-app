@@ -216,5 +216,5 @@ fun ProtectionSettings() {
     BigButton(
         if (Store.parentGateMath) "לחזור לנעילה בסיסמה 🔑" else "להחליף לתרגיל חשבון במקום סיסמה ✖️",
         Color(0xFF6B5B95),
-    ) { Store.setParentGateMath(!Store.parentGateMath) }
+    ) { Store.chooseParentGateMath(!Store.parentGateMath) }
 }
