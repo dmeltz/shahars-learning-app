@@ -541,6 +541,7 @@ object Store {
         if (parentDevice != asParent) {
             parentDevice = asParent
             Updater.reset()
+            if (!asParent) Sync.leftTestMode()
         }
         if (p != null && profile != p) choose(p) else WordsWidget.updateAll(appContext)
     }
