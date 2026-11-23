@@ -549,33 +549,3 @@ fun GiftedSettings() {
         Store.changeEnglishPause(!Store.englishPaused)
     }
 }
-
-/** A sum only a grown-up solves quickly, so the kids can't flip parent settings. */
-@Composable
-fun ParentGate(onDismiss: () -> Unit, onPass: () -> Unit) {
-    val a = remember { (23..49).random() }
-    val b = remember { (6..9).random() }
-    var text by remember { mutableStateOf("") }
-    var wrong by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("רק להורים 🔒", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("כדי להמשיך, כמה זה:", fontSize = 16.sp)
-                Text("$a × $b", fontSize = 28.sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Ltr))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.filter { c -> c.isDigit() }.take(4); wrong = false },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                if (wrong) Text("לא נכון, נסו שוב", color = Red, fontSize = 15.sp)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { if (text.toIntOrNull() == a * b) onPass() else wrong = true }) { Text("אישור") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } },
-    )
-}

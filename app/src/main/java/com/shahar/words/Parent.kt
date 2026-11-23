@@ -30,24 +30,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 
-/** The parent area (entered from Settings). Unlocked only after the password or the sum, until you leave it. */
+/** The parent area (entered from Settings). Unlocked only after the password, until you leave it. */
 object ParentArea {
     const val PASSWORD = "meltz1"
     var unlocked by mutableStateOf(false)
 }
 
-/** Lock in front of the parent area: the password, or (if a parent chose it) a sum only a grown-up solves quickly. */
+/** Lock in front of the parent area: the parent password. */
 @Composable
 fun ParentAreaGate(onDismiss: () -> Unit, onPass: () -> Unit) {
-    if (Store.parentGateMath) {
-        ParentGate(onDismiss, onPass)
-        return
-    }
     var text by remember { mutableStateOf("") }
     var wrong by remember { mutableStateOf(false) }
     // Phone keyboards often start with a capital letter or add a space: ignore both.
@@ -93,8 +88,6 @@ fun ParentScreen(onBack: () -> Unit) {
         SyncSettings()
         Spacer(Modifier.height(10.dp))
         ReportSettings()
-        Spacer(Modifier.height(10.dp))
-        ProtectionSettings()
         Spacer(Modifier.height(60.dp))
     }
 }
@@ -198,23 +191,4 @@ fun ExamSettings() {
     if (Store.hasExam && Store.isTomer) {
         TextButton(onClick = { Store.setExam(null) }) { Text("בלי מבחן (להסתיר את הספירה לאחור)", fontSize = 16.sp) }
     }
-}
-
-/** How the parent area is locked on this device. */
-@Composable
-fun ProtectionSettings() {
-    Text("נעילת אזור ההורים 🔐", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
-    Text(
-        if (Store.parentGateMath) "עכשיו: תרגיל חשבון (כפל של מספר דו-ספרתי בחד-ספרתי)."
-        else "עכשיו: סיסמה.",
-        fontSize = 16.sp, color = Ink,
-    )
-    Text(
-        "תרגיל חשבון נוח יותר להורים, אבל ילד שיודע לפתור כפל יוכל להיכנס.",
-        fontSize = 14.sp, color = Ink, textAlign = TextAlign.Start,
-    )
-    BigButton(
-        if (Store.parentGateMath) "לחזור לנעילה בסיסמה 🔑" else "להחליף לתרגיל חשבון במקום סיסמה ✖️",
-        Color(0xFF6B5B95),
-    ) { Store.chooseParentGateMath(!Store.parentGateMath) }
 }
