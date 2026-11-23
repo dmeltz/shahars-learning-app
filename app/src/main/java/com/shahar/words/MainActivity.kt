@@ -73,7 +73,7 @@ val Red = Color(0xFFFF5A5F)
 val Bg = Color(0xFFFFF4FA)
 val Ink = Color(0xFF3A2A4D)
 
-enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics, Prep }
+enum class Screen { Home, Practice, House, Shop, Words, Settings, Who, Pick, Phonics, Prep, Parent }
 
 class MainActivity : ComponentActivity() {
     private var startPractice by mutableStateOf(false)
@@ -105,11 +105,13 @@ class MainActivity : ComponentActivity() {
         super.onStart()
         // Maybe she played on her other device: take the newest game.
         Store.profile?.let { Sync.now(it) }
+        Stats.resumeScreen()
     }
 
     override fun onStop() {
         // Leaving the app ends the round: queue its data and try to send it.
         Stats.close(finished = false)
+        Stats.pauseScreen()
         Report.flush(this)
         Sync.flushPending()
         super.onStop()
@@ -139,7 +141,10 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
         if (Store.profile != null && Store.needsStarter && screen != Screen.Pick) screen = Screen.Pick
         if (Store.locked && screen == Screen.Who) screen = Screen.Home
     }
-    BackHandler(enabled = screen != Screen.Home && Store.profile != null && !Store.needsStarter) { screen = Screen.Home }
+    BackHandler(enabled = screen != Screen.Home && Store.profile != null && !Store.needsStarter) {
+        if (screen == Screen.Parent) ParentArea.unlocked = false
+        screen = if (screen == Screen.Parent) Screen.Settings else Screen.Home
+    }
 
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     LaunchedEffect(Unit) {
@@ -150,6 +155,7 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
         Report.screen = screen.name
         Report.question = ""
         Stats.close(finished = false)
+        Stats.screen(screen.name)
     }
     Box(Modifier.fillMaxSize().background(Bg).safeDrawingPadding()) {
         when (screen) {
@@ -158,7 +164,10 @@ fun App(startPractice: Boolean, onStarted: () -> Unit) {
             Screen.House -> HouseScreen(onBack = { screen = Screen.Home }, onShop = { screen = Screen.Shop })
             Screen.Shop -> ShopScreen(onBack = { screen = Screen.Home }, onHouse = { screen = Screen.House })
             Screen.Words -> WordsScreen { screen = Screen.Home }
-            Screen.Settings -> SettingsScreen { screen = Screen.Home }
+            Screen.Settings -> SettingsScreen(onBack = { screen = Screen.Home }, onParent = { screen = Screen.Parent })
+            Screen.Parent ->
+                if (ParentArea.unlocked) ParentScreen { ParentArea.unlocked = false; screen = Screen.Settings }
+                else SettingsScreen(onBack = { screen = Screen.Home }, onParent = { screen = Screen.Parent })
             Screen.Who -> WhoScreen { screen = if (Store.needsStarter) Screen.Pick else Screen.Home }
             Screen.Pick -> PickStarterScreen { screen = Screen.Home }
             Screen.Phonics -> PhonicsScreen(onExit = { screen = Screen.Home }, onHouse = { screen = Screen.House })
@@ -308,39 +317,27 @@ fun WordsScreen(onBack: () -> Unit) {
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, onParent: () -> Unit) {
     val ctx = LocalContext.current
-    val exam = if (Store.hasExam) LocalDate.ofEpochDay(Store.examDay) else LocalDate.now().plusMonths(1)
+    var asking by remember { mutableStateOf(false) }
+    val exam = if (Store.hasExam) LocalDate.ofEpochDay(Store.examDay) else null
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         TopBar("הגדרות", onBack)
         Text("שחקן: ${Store.name}", fontSize = 20.sp, color = Ink)
-        if (Store.hasExam) {
+        if (exam != null) {
             Text("תאריך המבחן: ${exam.dayOfMonth}.${exam.monthValue}.${exam.year}", fontSize = 20.sp, color = Ink)
         } else {
             Text("אין מבחן מתוכנן, אז לא מוצגת ספירה לאחור.", fontSize = 18.sp, color = Ink)
-        }
-        BigButton(if (Store.hasExam) "שינוי תאריך המבחן 📅" else "הוספת תאריך מבחן 📅", Blue) {
-            DatePickerDialog(ctx, { _, y, m, d -> Store.setExam(LocalDate.of(y, m + 1, d)) },
-                exam.year, exam.monthValue - 1, exam.dayOfMonth).show()
-        }
-        if (Store.hasExam && Store.isTomer) {
-            TextButton(onClick = { Store.setExam(null) }) { Text("בלי מבחן (להסתיר את הספירה לאחור)", fontSize = 16.sp) }
-        }
-        Spacer(Modifier.height(10.dp))
-        DeviceSettings()
-        if (Store.isTomer && !Store.englishLockedOff) {
-            Spacer(Modifier.height(10.dp))
-            GiftedSettings()
         }
         Spacer(Modifier.height(10.dp))
         Text(
             "תזכורת יומית בשעה %02d:%02d".format(Store.reminderHour, Store.reminderMinute),
             fontSize = 20.sp, color = Ink,
         )
-        Text(Store.g("התזכורת לא תופיע אם כבר התאמנת באותו יום.", "התזכורת לא תופיע אם כבר התאמנת באותו יום."), fontSize = 14.sp, color = Ink)
+        Text("התזכורת לא תופיע אם כבר התאמנת באותו יום.", fontSize = 14.sp, color = Ink)
         BigButton("שינוי שעת התזכורת ⏰", Purple) {
             TimePickerDialog(ctx, { _, h, m ->
                 Store.setReminder(h, m)
@@ -349,11 +346,16 @@ fun SettingsScreen(onBack: () -> Unit) {
         }
         Spacer(Modifier.height(10.dp))
         UpdateSection()
-        Spacer(Modifier.height(10.dp))
-        SyncSettings()
-        Spacer(Modifier.height(10.dp))
-        ReportSettings()
+        Spacer(Modifier.height(20.dp))
+        BigButton("אזור הורים 🔒", Color(0xFF6B5B95)) { asking = true }
         Spacer(Modifier.height(60.dp))
+    }
+    if (asking) {
+        ParentAreaGate(onDismiss = { asking = false }) {
+            asking = false
+            ParentArea.unlocked = true
+            onParent()
+        }
     }
 }
 
@@ -484,9 +486,8 @@ fun PickStarterScreen(onPicked: () -> Unit) {
 @Composable
 fun DeviceSettings() {
     val ctx = LocalContext.current
-    var asking by remember { mutableStateOf(false) }
     var choosing by remember { mutableStateOf(false) }
-    Text("הגדרת המכשיר (להורים) 🔒", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
+    Text("הגדרת המכשיר 📱", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
     Text(
         when {
             Store.deviceLock == SHAHAR -> "זה המכשיר של שחר: רק הכנה למבחן באנגלית. אי אפשר להחליף שחקן."
@@ -496,13 +497,7 @@ fun DeviceSettings() {
         },
         fontSize = 16.sp, color = Ink,
     )
-    BigButton("שינוי הגדרת המכשיר", Color(0xFF6B5B95)) { asking = true }
-    if (asking) {
-        ParentGate(onDismiss = { asking = false }) {
-            asking = false
-            choosing = true
-        }
-    }
+    BigButton("שינוי הגדרת המכשיר", Color(0xFF6B5B95)) { choosing = true }
     if (choosing) {
         AlertDialog(
             onDismissRequest = { choosing = false },
@@ -544,48 +539,13 @@ fun DeviceSettings() {
 /** Parent-only switch: pause Tomer's English so the app focuses on the gifted test. */
 @Composable
 fun GiftedSettings() {
-    var asking by remember { mutableStateOf(false) }
     Text("מבחן המחוננים 🧠", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Ink)
     Text(
         if (Store.englishPaused) "האנגלית בהפסקה. במסך הבית רואים רק את ההכנה למבחן, והווידג'ט והתזכורת פותחים אותה."
         else "האנגלית פעילה. ההכנה למבחן נמצאת בכפתור \"הכנה למבחן המחוננים\" במסך הבית.",
         fontSize = 16.sp, color = Ink,
     )
-    BigButton(if (Store.englishPaused) "להחזיר את האנגלית ▶️" else "לעצור את האנגלית עד המבחן ⏸️", Color(0xFF3F7CF5)) { asking = true }
-    if (asking) {
-        ParentGate(onDismiss = { asking = false }) {
-            asking = false
-            Store.changeEnglishPause(!Store.englishPaused)
-        }
+    BigButton(if (Store.englishPaused) "להחזיר את האנגלית ▶️" else "לעצור את האנגלית עד המבחן ⏸️", Color(0xFF3F7CF5)) {
+        Store.changeEnglishPause(!Store.englishPaused)
     }
-}
-
-/** A sum only a grown-up solves quickly, so the kids can't flip parent settings. */
-@Composable
-fun ParentGate(onDismiss: () -> Unit, onPass: () -> Unit) {
-    val a = remember { (23..49).random() }
-    val b = remember { (6..9).random() }
-    var text by remember { mutableStateOf("") }
-    var wrong by remember { mutableStateOf(false) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("רק להורים 🔒", fontWeight = FontWeight.Bold) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("כדי להמשיך, כמה זה:", fontSize = 16.sp)
-                Text("$a × $b", fontSize = 28.sp, fontWeight = FontWeight.Bold, style = TextStyle(textDirection = TextDirection.Ltr))
-                OutlinedTextField(
-                    value = text,
-                    onValueChange = { text = it.filter { c -> c.isDigit() }.take(4); wrong = false },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                )
-                if (wrong) Text("לא נכון, נסו שוב", color = Red, fontSize = 15.sp)
-            }
-        },
-        confirmButton = {
-            TextButton(onClick = { if (text.toIntOrNull() == a * b) onPass() else wrong = true }) { Text("אישור") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("ביטול") } },
-    )
 }

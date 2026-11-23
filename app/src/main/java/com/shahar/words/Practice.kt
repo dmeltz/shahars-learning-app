@@ -112,10 +112,8 @@ fun PracticeScreen(onExit: () -> Unit, onHouse: () -> Unit) {
             key(index, round) {
                 QuestionView(q) { ok, pts ->
                     Store.recordAnswer(q.word, ok, pts)
-                    if (ok) {
-                        correct++
-                        earned += pts
-                    }
+                    if (ok) correct++
+                    earned += pts
                     if (index + 1 == round.size) bonus = Store.finishSession()
                     index++
                 }
@@ -172,9 +170,9 @@ fun WordCard(text: String, english: Boolean = false, note: String = "", emoji: S
 }
 
 @Composable
-fun Feedback(ok: Boolean, pts: Int, w: Word) {
+fun Feedback(ok: Boolean, pts: Int, w: Word, lost: Int = 0) {
     val msg = remember(ok) {
-        if (ok) "${(if (Store.isTomer) PRAISE_M else PRAISE_F).random()} +$pts ⭐" else "לא נורא! ${w.emoji} ${w.en} = ${w.he}. בפעם הבאה זה יצליח!".replace("  ", " ")
+        if (ok) "${(if (Store.isTomer) PRAISE_M else PRAISE_F).random()} +$pts ⭐" else "לא נורא!${if (lost > 0) " (−$lost ⭐)" else ""} ${w.emoji} ${w.en} = ${w.he}. בפעם הבאה זה יצליח!".replace("  ", " ")
     }
     BoniSays(msg, if (ok) BoniMood.CHEER else BoniMood.HAPPY, if (ok) Color(0xFF1F8A57) else Color(0xFFB85C00))
 }
@@ -192,7 +190,7 @@ fun FlashCard(q: Q, onDone: (Boolean, Int) -> Unit) {
             // The picture is shown only after flipping, so the front makes him listen or read first.
             WordCard(q.word.he, emoji = q.word.emoji)
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, 5) }
+                BigButton("ידעתי ✓", Green, Modifier.weight(1f)) { onDone(true, if (Store.isTomer) 5 else 0) }
                 BigButton("עוד לא", Orange, Modifier.weight(1f)) { onDone(false, 0) }
             }
         }
@@ -232,8 +230,8 @@ fun MultipleChoice(q: Q, fromEnglish: Boolean, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, 10, q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) 10 else 0) }
+            Feedback(ok, Store.pts(10), q.word, Store.miss(10))
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else -Store.miss(10)) }
         }
     }
 }
@@ -282,8 +280,8 @@ fun ListenAndPick(q: Q, onDone: (Boolean, Int) -> Unit) {
         val c = chosen
         if (c != null) {
             val ok = c == q.word
-            Feedback(ok, 10, q.word)
-            BigButton("הבא", Purple) { onDone(ok, if (ok) 10 else 0) }
+            Feedback(ok, Store.pts(10), q.word, Store.miss(10))
+            BigButton("הבא", Purple) { onDone(ok, if (ok) Store.pts(10) else -Store.miss(10)) }
         }
     }
 }
@@ -294,7 +292,8 @@ fun TypeAnswer(q: Q, onDone: (Boolean, Int) -> Unit) {
     var result by remember { mutableStateOf<Boolean?>(null) }
     var hint by remember { mutableStateOf(false) }
     var ilHint by remember { mutableStateOf(false) }
-    val pts = if (hint) 10 else 15
+    // Shahar: 10 for spelling it alone, 5 with the hint. Tomer has no typing.
+    val pts = if (Store.isTomer) (if (hint) 10 else 15) else (if (hint) 5 else 10)
     val check = {
         if (text.isNotBlank() && result == null) {
             Stats.picked(text)

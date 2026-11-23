@@ -109,6 +109,79 @@ object Stats {
         desc = ""
     }
 
+    // ----- Screen time: how long each kid spends learning vs. in the house and the shop -----
+    // Each visit to the app (until it goes to the background) becomes one file per kid,
+    // stats/<profile>/<YYYY-MM>/<start>_time.jsonl:
+    //   {"type":"visit", profile, start, build, device}
+    //   {"type":"time", screen, kind, start, seconds}   one per stay on a screen (kind = learn/house/shop/other)
+    //   {"type":"end", learn, house, shop, other}       total seconds per kind
+
+    private var segScreen = ""
+    private var segProfile = ""
+    private var segStart = 0L
+    private val segs = mutableListOf<Pair<String, JSONObject>>()
+
+    fun kindOf(screen: String) = when (screen) {
+        "Practice", "Phonics", "Prep" -> "learn"
+        "House" -> "house"
+        "Shop" -> "shop"
+        else -> "other"
+    }
+
+    /** The app now shows [name]. Called by the app when the screen changes. */
+    fun screen(name: String) {
+        endSegment()
+        segScreen = name
+        segProfile = Store.profile ?: ""
+        segStart = System.currentTimeMillis()
+    }
+
+    private fun endSegment() {
+        if (segStart == 0L || segScreen.isEmpty() || segProfile.isEmpty()) { segStart = 0L; return }
+        val secs = (System.currentTimeMillis() - segStart) / 1000
+        if (secs >= 1) {
+            val at = java.time.Instant.ofEpochMilli(segStart).atZone(java.time.ZoneId.systemDefault()).toLocalDateTime()
+            segs += segProfile to JSONObject()
+                .put("type", "time")
+                .put("screen", segScreen)
+                .put("kind", kindOf(segScreen))
+                .put("start", at.format(stamp))
+                .put("seconds", secs)
+        }
+        segStart = 0L
+    }
+
+    /** The app went to the background: end the current stay and queue the visit for upload. */
+    fun pauseScreen() {
+        if (!::app.isInitialized) return
+        try {
+            endSegment()
+            for ((profile, list) in segs.groupBy({ it.first }, { it.second })) {
+                val start = list.first().optString("start")
+                val sums = linkedMapOf("learn" to 0L, "house" to 0L, "shop" to 0L, "other" to 0L)
+                list.forEach { sums[it.optString("kind")] = (sums[it.optString("kind")] ?: 0L) + it.optLong("seconds") }
+                val text = buildString {
+                    append(JSONObject().put("type", "visit").put("profile", profile).put("start", start)
+                        .put("build", Updater.currentBuild(app)).put("device", "${Build.MANUFACTURER} ${Build.MODEL}").toString() + "\n")
+                    list.forEach { append(it.toString() + "\n") }
+                    append(JSONObject().put("type", "end").apply { sums.forEach { (k, v) -> put(k, v) } }.toString() + "\n")
+                }
+                File(outDir(), "${profile}__${start}_time.jsonl").writeText(text)
+            }
+        } catch (e: Exception) {
+            // Never let data collection break the app.
+        }
+        segs.clear()
+    }
+
+    /** The app is back in front: the screen it shows starts a new stay. */
+    fun resumeScreen() {
+        if (segScreen.isNotEmpty()) {
+            segProfile = Store.profile ?: ""
+            segStart = System.currentTimeMillis()
+        }
+    }
+
     fun outbox(ctx: Context): List<File> =
         File(ctx.filesDir, "stats-out").listFiles { f -> f.name.endsWith(".jsonl") }?.sortedBy { it.name } ?: emptyList()
 

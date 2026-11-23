@@ -371,8 +371,10 @@ fun PhonicsPractice(s: PStage, onHouse: () -> Unit, onExit: () -> Unit) {
         Stats.shown("phonics-${s.id}", "$index: $q")
         key(index, round) {
             PhonicsQuestion(s, q) { ok ->
-                Store.recordPhonics(pKey(s, q.item), ok, 10)
-                if (ok) { correct++; earned += 10 }
+                val delta = if (ok) Store.pts(10) else -Store.miss(10)
+                Store.recordPhonics(pKey(s, q.item), ok, delta)
+                if (ok) correct++
+                earned += delta
                 if (index + 1 == round.size) bonus = Store.finishSession()
                 index++
             }
@@ -472,7 +474,7 @@ fun PhonicsQuestion(s: PStage, q: PQ, onDone: (Boolean) -> Unit) {
             if (c != null) {
                 val ok = c == q.answer
                 val ph = q.item
-                val msg = (if (ok) "כל הכבוד! +10 ⭐\n" else "לא נורא!\n") +
+                val msg = (if (ok) "כל הכבוד! +${Store.pts(10)} ⭐\n" else "לא נורא!${if (Store.miss(10) > 0) " (−${Store.miss(10)} ⭐)" else ""}\n") +
                     "${ph.shown.replace("_", "…")} נשמע ${ph.he}, כמו ${ph.say} ${ph.emoji}" +
                     (if (ph.hint.isNotEmpty()) "\n${ph.hint}" else "")
                 BoniSays(msg, if (ok) BoniMood.CHEER else BoniMood.HAPPY,

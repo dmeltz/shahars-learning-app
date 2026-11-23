@@ -95,6 +95,22 @@ object Sync {
         scope.launch { sync(profile) }
     }
 
+    /**
+     * Parent gift: first take the newest game of [profile] from the cloud (so nothing the kid did on
+     * another device is lost), then add the points and upload right away. [done] gets a short status.
+     */
+    fun addPoints(profile: String, n: Int, done: (String) -> Unit) {
+        if (!::app.isInitialized) { Store.addPoints(profile, n); done("נוסף ✓"); return }
+        pushJob?.cancel()
+        scope.launch {
+            sync(profile)
+            Store.addPoints(profile, n)
+            pushJob?.cancel()
+            sync(profile)
+            done(if (enabled && Report.token(app).isNotEmpty()) "נוסף ✓ $lastStatus" else "נוסף במכשיר הזה ✓")
+        }
+    }
+
     /** Leaving the app: upload a waiting change now instead of in a few seconds. */
     fun flushPending() {
         val p = Store.profile ?: return

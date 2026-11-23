@@ -356,17 +356,17 @@ object Store {
     fun recordAnswer(w: Word, correct: Boolean, pts: Int) {
         val l = level(w)
         levels[w.en] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
-        if (correct) points += pts
+        points = maxOf(0, points + pts)
         save()
-        Stats.answered(w.en, correct, if (correct) pts else 0)
+        Stats.answered(w.en, correct, pts)
     }
 
     fun recordPhonics(key: String, correct: Boolean, pts: Int) {
         val l = levels[key] ?: 0
         levels[key] = if (correct) minOf(l + 1, 5) else maxOf(l - 2, 0)
-        if (correct) points += pts
+        points = maxOf(0, points + pts)
         save()
-        Stats.answered(key, correct, if (correct) pts else 0)
+        Stats.answered(key, correct, pts)
     }
 
     /** Prep answers: [delta] is the points won (or, when below zero, lost). Points never go below zero. */
@@ -378,10 +378,26 @@ object Store {
         Stats.answered(key, correct, delta)
     }
 
+    /**
+     * Points for one of the English practice / phonics answers, or the end-of-round bonus.
+     * Shahar answers her questions in a few seconds, while Tomer's prep questions take him
+     * 20 to 60 seconds, so Shahar gets about a quarter of the base points (10 -> 3,
+     * 20 -> 5) to keep the two kids' points per minute of practice close.
+     * The daily streak bonus and the shop prices are the same for both.
+     */
+    fun pts(base: Int): Int = if (isTomer) base else (base + 2) / 4
+
+    /**
+     * Points Shahar loses for a wrong pick on a question with options (multiple choice, phonics),
+     * like Tomer's prep questions: a quarter of what a right answer gives, at least 1.
+     * Tomer's English practice (paused for now) stays without a penalty.
+     */
+    fun miss(base: Int): Int = if (isTomer) 0 else maxOf(1, penalty(pts(base)))
+
     /** Ends a round. Returns the bonus points she got. */
     fun finishSession(): Int {
         val t = today()
-        var bonus = 20
+        var bonus = if (isTomer) 25 else pts(20)
         if (lastPracticeDay != t) {
             streak = if (lastPracticeDay == t - 1) streak + 1 else 1
             bonus += 30 + minOf(streak, 5) * 5
@@ -528,6 +544,24 @@ object Store {
         }
         if (p != null && profile != p) choose(p) else WordsWidget.updateAll(appContext)
     }
+
+    /** Parent gift: adds [n] points to [p]'s game, whether or not that kid is on screen. */
+    @Synchronized
+    fun addPoints(p: String, n: Int) {
+        if (n <= 0) return
+        if (profile == p) {
+            points += n
+            save()
+        } else {
+            val f = appContext.getSharedPreferences(p, Context.MODE_PRIVATE)
+            f.edit().putInt("points", f.getInt("points", 0) + n).commit()
+            Sync.changed(p)
+        }
+    }
+
+    /** Points saved for [p] on this device (the one on screen, or the other kid's file). */
+    fun pointsOf(p: String): Int =
+        if (profile == p) points else appContext.getSharedPreferences(p, Context.MODE_PRIVATE).getInt("points", 0)
 
     /** True when the player can't be switched on this device. */
     val locked: Boolean get() = deviceLock != null
