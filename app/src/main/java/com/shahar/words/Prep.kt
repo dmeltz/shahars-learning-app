@@ -92,8 +92,9 @@ private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> {
 }
 
 fun meaningQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
-    return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", s, opts, idx,
         "${w.word} = ${w.meaning}", mark = w.form)
 }
 
@@ -104,17 +105,19 @@ fun clozeQ(w: HeWord): ChoiceQ {
 }
 
 fun synonymQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     val wrong = (others(w).map { it.syn } + others(w, false).map { it.syn }).filter { it.isNotEmpty() && it != w.syn }
     val (opts, idx) = shuffleChoice(w.syn, wrong)
-    return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", s, opts, idx,
         "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form)
 }
 
 fun oppositeQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     // A tricky option: the word that means the same, not the opposite.
     val wrong = listOf(w.syn).filter { it.isNotEmpty() } + others(w).map { it.opp }.filter { it.isNotEmpty() && it != w.opp } + others(w).map { it.word }
     val (opts, idx) = shuffleChoice(w.opp, wrong)
-    return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", s, opts, idx,
         "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form)
 }
 
@@ -164,7 +167,8 @@ fun readingRound(): List<PrepItem> {
     // The passage he has practised least comes next.
     val p = PASSAGES.sortedBy { (Store.levels[readingKey(it)] ?: 0) + Random.nextDouble() }.first()
     return p.questions.map { rq ->
-        val (opts, idx) = shuffleChoice(rq.right, rq.wrong)
+        // The newer sample tests have 5 answers; the older passages here have 4.
+        val (opts, idx) = shuffleChoice(rq.right, rq.wrong, maxWrong = 4)
         PrepItem.Choice(ChoiceQ(readingKey(p), rq.q, "", opts, idx, rq.why, passage = p))
     }
 }
