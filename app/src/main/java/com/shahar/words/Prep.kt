@@ -112,6 +112,20 @@ fun synonymQ(w: HeWord): ChoiceQ {
         "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form)
 }
 
+/**
+ * From the 2025 Ministry test: "which pair of words is NOT synonyms?" Three real pairs (a word and
+ * its synonym) and one wrong pair: this word with a synonym of a different word.
+ */
+fun notSynonymPairQ(w: HeWord): ChoiceQ {
+    val real = HE_WORDS.filter { it != w && it.syn.isNotEmpty() }.shuffled().take(3).map { "${it.word} – ${it.syn}" }
+    val fake = HE_WORDS.filter { it != w && it.syn.isNotEmpty() && it.syn != w.syn }.random().syn
+    val wrongPair = "${w.word} – $fake"
+    val opts = (real + wrongPair).shuffled()
+    return ChoiceQ(heKey(w), "מִלִּים נִרְדָּפוֹת הֵן מִלִּים שֶׁיֵּשׁ לָהֶן אוֹתָהּ מַשְׁמָעוּת. אֵיזֶה זוּג אֵינוֹ מִלִּים נִרְדָּפוֹת?", "",
+        opts, opts.indexOf(wrongPair),
+        "\"${w.word}\" ו\"$fake\" לא אומרות אותו דבר.\n${w.word} = ${w.meaning}\nמילה נרדפת ל\"${w.word}\" היא \"${w.syn}\".")
+}
+
 fun oppositeQ(w: HeWord): ChoiceQ {
     val s = anySentence(w)
     // A tricky option: the word that means the same, not the opposite.
@@ -148,7 +162,7 @@ fun vocabItem(w: HeWord): PrepItem {
     val lvl = heLevel(w)
     if (lvl == 0) return PrepItem.Flash(w)
     val kinds = mutableListOf("meaning", "cloze", "usage")
-    if (lvl >= 2 && w.syn.isNotEmpty()) kinds += "syn"
+    if (lvl >= 2 && w.syn.isNotEmpty()) kinds += listOf("syn", "pairs")
     if (lvl >= 2 && w.opp.isNotEmpty()) kinds += "opp"
     if (lvl <= 1) kinds += "flash"
     return when (kinds.random()) {
@@ -157,6 +171,7 @@ fun vocabItem(w: HeWord): PrepItem {
         "cloze" -> PrepItem.Choice(clozeQ(w))
         "usage" -> PrepItem.Choice(usageQ(w) ?: meaningQ(w))
         "syn" -> PrepItem.Choice(synonymQ(w))
+        "pairs" -> PrepItem.Choice(notSynonymPairQ(w))
         else -> PrepItem.Choice(oppositeQ(w))
     }
 }
