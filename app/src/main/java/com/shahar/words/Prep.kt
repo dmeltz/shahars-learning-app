@@ -92,8 +92,9 @@ private fun others(w: HeWord, samePos: Boolean = true): List<HeWord> {
 }
 
 fun meaningQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     val (opts, idx) = shuffleChoice(w.meaning, others(w, false).map { it.meaning })
-    return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "מה הפירוש של המילה \"${w.word}\"?", s, opts, idx,
         "${w.word} = ${w.meaning}", mark = w.form)
 }
 
@@ -104,17 +105,33 @@ fun clozeQ(w: HeWord): ChoiceQ {
 }
 
 fun synonymQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     val wrong = (others(w).map { it.syn } + others(w, false).map { it.syn }).filter { it.isNotEmpty() && it != w.syn }
     val (opts, idx) = shuffleChoice(w.syn, wrong)
-    return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "איזו מילה יכולה להחליף את המילה \"${w.word}\" במשפט?", s, opts, idx,
         "\"${w.syn}\" אומרת כמעט אותו דבר כמו \"${w.word}\": ${w.meaning}.", mark = w.form)
 }
 
+/**
+ * From the 2025 Ministry test: "which pair of words is NOT synonyms?" Three real pairs (a word and
+ * its synonym) and one wrong pair: this word with a synonym of a different word.
+ */
+fun notSynonymPairQ(w: HeWord): ChoiceQ {
+    val real = HE_WORDS.filter { it != w && it.syn.isNotEmpty() }.shuffled().take(3).map { "${it.word} – ${it.syn}" }
+    val fake = HE_WORDS.filter { it != w && it.syn.isNotEmpty() && it.syn != w.syn }.random().syn
+    val wrongPair = "${w.word} – $fake"
+    val opts = (real + wrongPair).shuffled()
+    return ChoiceQ(heKey(w), "מִלִּים נִרְדָּפוֹת הֵן מִלִּים שֶׁיֵּשׁ לָהֶן אוֹתָהּ מַשְׁמָעוּת. אֵיזֶה זוּג אֵינוֹ מִלִּים נִרְדָּפוֹת?", "",
+        opts, opts.indexOf(wrongPair),
+        "\"${w.word}\" ו\"$fake\" לא אומרות אותו דבר.\n${w.word} = ${w.meaning}\nמילה נרדפת ל\"${w.word}\" היא \"${w.syn}\".")
+}
+
 fun oppositeQ(w: HeWord): ChoiceQ {
+    val s = anySentence(w)
     // A tricky option: the word that means the same, not the opposite.
     val wrong = listOf(w.syn).filter { it.isNotEmpty() } + others(w).map { it.opp }.filter { it.isNotEmpty() && it != w.opp } + others(w).map { it.word }
     val (opts, idx) = shuffleChoice(w.opp, wrong)
-    return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", w.sentence, opts, idx,
+    return ChoiceQ(heKey(w), "מה ההפך של \"${w.word}\"?", s, opts, idx,
         "ההפך של \"${w.word}\" הוא \"${w.opp}\"." + (if (w.syn.isNotEmpty()) " (\"${w.syn}\" זה דומה, לא הפוך.)" else ""), mark = w.form)
 }
 
@@ -145,7 +162,7 @@ fun vocabItem(w: HeWord): PrepItem {
     val lvl = heLevel(w)
     if (lvl == 0) return PrepItem.Flash(w)
     val kinds = mutableListOf("meaning", "cloze", "usage")
-    if (lvl >= 2 && w.syn.isNotEmpty()) kinds += "syn"
+    if (lvl >= 2 && w.syn.isNotEmpty()) kinds += listOf("syn", "pairs")
     if (lvl >= 2 && w.opp.isNotEmpty()) kinds += "opp"
     if (lvl <= 1) kinds += "flash"
     return when (kinds.random()) {
@@ -154,6 +171,7 @@ fun vocabItem(w: HeWord): PrepItem {
         "cloze" -> PrepItem.Choice(clozeQ(w))
         "usage" -> PrepItem.Choice(usageQ(w) ?: meaningQ(w))
         "syn" -> PrepItem.Choice(synonymQ(w))
+        "pairs" -> PrepItem.Choice(notSynonymPairQ(w))
         else -> PrepItem.Choice(oppositeQ(w))
     }
 }
@@ -164,7 +182,8 @@ fun readingRound(): List<PrepItem> {
     // The passage he has practised least comes next.
     val p = PASSAGES.sortedBy { (Store.levels[readingKey(it)] ?: 0) + Random.nextDouble() }.first()
     return p.questions.map { rq ->
-        val (opts, idx) = shuffleChoice(rq.right, rq.wrong)
+        // The newer sample tests have 5 answers; the older passages here have 4.
+        val (opts, idx) = shuffleChoice(rq.right, rq.wrong, maxWrong = 4)
         PrepItem.Choice(ChoiceQ(readingKey(p), rq.q, "", opts, idx, rq.why, passage = p))
     }
 }

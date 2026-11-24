@@ -37,8 +37,8 @@ private fun numChoice(ans: Int, vararg near: Int): Pair<List<String>, Int> {
 }
 
 /** Shuffles the right answer in with the wrong ones. */
-fun shuffleChoice(right: String, wrong: List<String>): Pair<List<String>, Int> {
-    val opts = (wrong.distinct().filter { it != right }.take(3) + right).shuffled()
+fun shuffleChoice(right: String, wrong: List<String>, maxWrong: Int = 3): Pair<List<String>, Int> {
+    val opts = (wrong.distinct().filter { it != right }.take(maxWrong) + right).shuffled()
     return opts to opts.indexOf(right)
 }
 
@@ -136,6 +136,34 @@ private fun missingQ(): ChoiceQ {
     }
 }
 
+/** Four different digits (0-9): the right one and close ones. */
+private fun digitChoice(d: Int): Pair<List<String>, Int> {
+    val set = linkedSetOf(d)
+    for (x in listOf(d + 1, d - 1, d + 2, d - 2, d + 3, d - 3)) if (set.size < 4 && x in 0..9) set.add(x)
+    val opts = set.toList().shuffled()
+    return opts.map { "△ = $it" } to opts.indexOf(d)
+}
+
+/**
+ * Missing-digit puzzles from the Ministry's sample test ("1△ + 1△ = 28"):
+ * every △ in the exercise is the same digit.
+ */
+private fun digitQ(): ChoiceQ {
+    val title = "בְּכָל הַמְּקוֹמוֹת שֶׁל △ יֵשׁ אוֹתָהּ סִפְרָה. אֵיזוֹ סִפְרָה?"
+    return if (Random.nextBoolean()) {
+        val t1 = rnd(1, 3); val t2 = rnd(1, 3); val d = rnd(1, 9)
+        val a = 10 * t1 + d; val b = 10 * t2 + d; val s = a + b
+        val (opts, idx) = digitChoice(d)
+        ChoiceQ("math:digit", title, "$t1△ + $t2△ = $s", opts, idx,
+            "מנסים את הספרה $d:\n$a + $b = $s\nנכון! טיפ: האחדות של שני המספרים זהות, אז האחדות של התוצאה ($s) עוזרות למצוא את △.", ltr = true)
+    } else {
+        val d = rnd(1, 7); val s = 12 * d
+        val (opts, idx) = digitChoice(d)
+        ChoiceQ("math:digit", title, "△△ + △ = $s", opts, idx,
+            "מנסים את הספרה $d:\n$d$d + $d = $s\nנכון! △△ הוא מספר עם אותה ספרה פעמיים, כמו 33 או 55.", ltr = true)
+    }
+}
+
 /** Inequalities like "30 + 11 > 30 + __". */
 private fun compareQ(): ChoiceQ {
     val base = listOf(10, 20, 30, 40, 50).random()
@@ -156,6 +184,19 @@ private fun compareQ(): ChoiceQ {
 private fun shapesQ(): ChoiceQ {
     val s = rnd(2, 9)
     val t = rnd(3, 15)
+    // Two more kinds from the 2025 Ministry test: a third shape added on, and a pair that repeats.
+    when (rnd(0, 3)) {
+        2 -> {
+            val f = rnd(2, 6); val star = rnd(3, 9)
+            return mathQ("shape", "כל צורה היא מספר. איזה מספר הוא ⭐?", "🌼 + 🌼 = ${2 * f}\n🌼 + 🌼 + ⭐ = ${2 * f + star}", star,
+                "בשורה השנייה יש את אותם 🌼 + 🌼 כמו בראשונה, וזה ${2 * f}. אז:\n${2 * f} + ⭐ = ${2 * f + star}\n⭐ = ${2 * f + star} − ${2 * f} = $star", 2 * f, f, 2 * f + star)
+        }
+        3 -> {
+            val hc = rnd(10, 20); val sun = rnd(2, 5)
+            return mathQ("shape", "כל צורה היא מספר. איזה מספר הוא ☀️?", "🏠 + 🚗 = $hc\n☀️ + ☀️ + ☀️ + ☀️ + 🏠 + 🚗 = ${hc + 4 * sun}", sun,
+                "🏠 + 🚗 ביחד הם $hc, אז:\n4 שמשות = ${hc + 4 * sun} − $hc = ${4 * sun}\nשמש אחת:\n${4 * sun} : 4 = $sun", 4 * sun, sun + 2, hc)
+        }
+    }
     return if (Random.nextBoolean()) {
         mathQ("shape", "כל צורה היא מספר. איזה מספר הוא 🔺?", "🟦 + 🟦 = ${2 * s}\n🟦 + 🔺 = ${s + t}", t,
             "שני ריבועים זהים נותנים ${2 * s}, אז:\n🟦 = $s\nואז:\n$s + 🔺 = ${s + t}\n🔺 = $t", s, s + t, 2 * s)
@@ -166,7 +207,7 @@ private fun shapesQ(): ChoiceQ {
 }
 
 fun mathRound(n: Int = 10): List<ChoiceQ> {
-    val kinds = listOf("add", "add", "sub", "sub", "mul", "mul", "miss", "miss", "cmp", "shape").shuffled()
+    val kinds = listOf("add", "add", "sub", "sub", "mul", "mul", "miss", "miss", "cmp", "shape", "digit").shuffled()
     return List(n) { i ->
         when (kinds[i % kinds.size]) {
             "add" -> addQ()
@@ -174,6 +215,7 @@ fun mathRound(n: Int = 10): List<ChoiceQ> {
             "mul" -> mulQ()
             "miss" -> missingQ()
             "cmp" -> compareQ()
+            "digit" -> digitQ()
             else -> shapesQ()
         }
     }
@@ -310,6 +352,74 @@ private val TEMPLATES: List<() -> WordProblem> = listOf(
         WordProblem("rows", "בָּאוּלָם יֵשׁ $r שׁוּרוֹת שֶׁל כִּסְאוֹת, וּבְכָל שׁוּרָה יֵשׁ $k כִּסְאוֹת. כַּמָּה כִּסְאוֹת יֵשׁ בָּאוּלָם?", MUL,
             "$r × $k", listOf("$r + $k", "$r + $r", "${maxOf(r, k)} − ${minOf(r, k)}"), r * k, "כיסאות",
             "יש $r שורות שוות של $k כיסאות:\n$r × $k = ${r * k}")
+    },
+    // ----- Added 2026-11-23 from the newer sample tests: price lists, half shekels, sharing, time -----
+    {
+        val g = GIRLS.random(); val rose = rnd(3, 6); val sun = rnd(2, 5).let { if (it == rose) it + 1 else it }; val k = rnd(2, 4)
+        WordProblem("pricelist", "מְחִירוֹן בַּחֲנוּת הַפְּרָחִים:\nוֶרֶד: $rose ₪\nחַמָּנִית: $sun ₪\n$g קָנְתָה $k וְרָדִים וְחַמָּנִית אַחַת. כַּמָּה הִיא שִׁלְּמָה?", TWO,
+            "$k × $rose + $sun", listOf("$k + $rose + $sun", "($rose + $sun) × $k", "$k × $sun + $rose"), k * rose + sun, "₪",
+            "שלב 1: כמה עולים הוורדים?\n$k × $rose = ${k * rose}\nשלב 2: מוסיפים את החמנית:\n${k * rose} + $sun = ${k * rose + sun}")
+    },
+    {
+        val n = rnd(3, 9)
+        WordProblem("half", "מַסְטִיק עוֹלֶה חֲצִי שֶׁקֶל. כַּמָּה מַסְטִיקִים אֶפְשָׁר לִקְנוֹת בְּ-$n ₪?", MUL,
+            "$n × 2", listOf("$n + 2", "$n − 2", "$n : 2"), n * 2, "מסטיקים",
+            "בכל שקל יש 2 חצאי שקל, אז בכל שקל קונים 2 מסטיקים:\n$n × 2 = ${n * 2}")
+    },
+    {
+        val g = GIRLS.random(); val k = rnd(2, 5); val each = rnd(2, 6)
+        WordProblem("share", "לְ$g יֵשׁ ${k * each} סֻכָּרִיּוֹת. הִיא חִלְּקָה אוֹתָן שָׁוֶה בְּשָׁוֶה בֵּין $k חֲבֵרוֹת. כַּמָּה סֻכָּרִיּוֹת קִבְּלָה כָּל חֲבֵרָה?", MUL,
+            "${k * each} : $k", listOf("${k * each} − $k", "${k * each} + $k", "${k * each} × $k"), each, "סוכריות",
+            "\"שווה בשווה\" זה חילוק. שואלים: $k כפול כמה זה ${k * each}?\n$k × $each = ${k * each}\nולכן:\n${k * each} : $k = $each")
+    },
+    {
+        val start = rnd(1, 5); val h = rnd(2, 4)
+        WordProblem("clock", "הַטִּיּוּל הִתְחִיל בְּשָׁעָה $start וְנִמְשַׁךְ $h שָׁעוֹת. בְּאֵיזוֹ שָׁעָה הוּא נִגְמַר?", ADD,
+            "$start + $h", listOf("$start − $h", "$h − $start", "$start × $h"), start + h, "(השעה)",
+            "הזמן מתקדם, אז מוסיפים את השעות:\n$start + $h = ${start + h}")
+    },
+    {
+        val x = BOYS.random(); val a = rnd(10, 25); val b = rnd(10, 25)
+        WordProblem("minutes", "$x הִתְאַמֵּן $a דַּקּוֹת בַּבֹּקֶר וְ-$b דַּקּוֹת בָּעֶרֶב. כַּמָּה דַּקּוֹת חָסְרוֹת לוֹ כְּדֵי לְהַגִּיעַ לְשָׁעָה שְׁלֵמָה שֶׁל אִמּוּן?", TWO,
+            "60 − ($a + $b)", listOf("$a + $b", "60 − $a", "60 + $a + $b"), 60 - a - b, "דקות",
+            "שעה = 60 דקות.\nשלב 1: כמה כבר התאמן?\n$a + $b = ${a + b}\nשלב 2: כמה חסר?\n60 − ${a + b} = ${60 - a - b}")
+    },
+    {
+        val glove = rnd(8, 20); val d = rnd(3, 9)
+        WordProblem("hat", "זוּג כְּפָפוֹת עוֹלֶה $glove ₪. כּוֹבַע עוֹלֶה $d ₪ יוֹתֵר מֵהַכְּפָפוֹת. כַּמָּה עוֹלִים הַכְּפָפוֹת וְהַכּוֹבַע יַחַד?", TWO,
+            "$glove + ($glove + $d)", listOf("$glove + $d", "$glove − $d", "$glove × $d"), glove * 2 + d, "₪",
+            "שלב 1: כמה עולה הכובע?\n$glove + $d = ${glove + d}\nשלב 2: ביחד עם הכפפות:\n$glove + ${glove + d} = ${glove * 2 + d}")
+    },
+    {
+        val n = rnd(6, 14)
+        WordProblem("pairs", "בַּטִּיּוּל הַיְּלָדִים הָלְכוּ בְּזוּגוֹת. הָיוּ $n זוּגוֹת, וְעוֹד יֶלֶד אֶחָד הָלַךְ לְיַד הַמּוֹרָה. כַּמָּה יְלָדִים הָיוּ בַּטִּיּוּל?", TWO,
+            "$n × 2 + 1", listOf("$n + 1", "$n + 2", "$n × 2"), n * 2 + 1, "ילדים",
+            "בכל זוג יש 2 ילדים:\n$n × 2 = ${n * 2}\nועוד הילד שהלך ליד המורה:\n${n * 2} + 1 = ${n * 2 + 1}")
+    },
+    {
+        val x = BOYS.random(); val a = rnd(20, 40); val b = rnd(3, 9); val c = rnd(3, 9)
+        WordProblem("basket", "בַּסַּל הָיוּ $a תַּפּוּחִים. אִמָּא לָקְחָה $b תַּפּוּחִים לָעוּגָה, וְ$x לָקַח עוֹד $c. כַּמָּה תַּפּוּחִים נִשְׁאֲרוּ בַּסַּל?", TWO,
+            "$a − $b − $c", listOf("$a − $b + $c", "$a + $b + $c", "$b + $c"), a - b - c, "תפוחים",
+            "שני אנשים לקחו, אז מורידים פעמיים:\n$a − $b = ${a - b}\n${a - b} − $c = ${a - b - c}")
+    },
+    // ----- From the 2025 Ministry test (grade 2) -----
+    {
+        val sh = rnd(3, 8); val ch = rnd(2, minOf(8, 2 * sh - 1)) // fewer chicken legs than sheep legs
+        WordProblem("legsdiff", "לְתַרְנְגֹלֶת יֵשׁ 2 רַגְלַיִם, וּלְכֶבֶשׂ יֵשׁ 4 רַגְלַיִם. בַּחַוָּה יֵשׁ $ch תַּרְנְגוֹלוֹת וְ-$sh כְּבָשִׂים. בְּכַמָּה גָּדוֹל מִסְפַּר הָרַגְלַיִם שֶׁל הַכְּבָשִׂים מִמִּסְפַּר הָרַגְלַיִם שֶׁל הַתַּרְנְגוֹלוֹת?", TWO,
+            "$sh × 4 − $ch × 2", listOf("$sh − $ch", "$sh × 4 + $ch × 2", "($sh + $ch) × 2"), sh * 4 - ch * 2, "רגליים",
+            "שלב 1: כמה רגליים לכל קבוצה?\n$sh × 4 = ${sh * 4}\n$ch × 2 = ${ch * 2}\nשלב 2: \"בכמה גדול\" זה הפרש:\n${sh * 4} − ${ch * 2} = ${sh * 4 - ch * 2}")
+    },
+    {
+        val (x, y) = two(GIRLS); val start = rnd(20, 30); val give = rnd(2, 4); val rounds = 3
+        WordProblem("rounds", "$x וְ$y מְשַׂחֲקוֹת בְּמִשְׂחַק קְלָפִים. בַּהַתְחָלָה הָיוּ לְכָל אַחַת $start קְלָפִים. הַמִּשְׂחָק נִמְשַׁךְ $rounds סְבָבִים, וּבְכָל סִבּוּב $x הִפְסִידָה וְנָתְנָה לְ$y $give קְלָפִים. כַּמָּה קְלָפִים יֵשׁ לְ$y אַחֲרֵי $rounds הַסְּבָבִים?", TWO,
+            "$start + $rounds × $give", listOf("$start + $give", "$start − $rounds × $give", "$rounds × $give"), start + rounds * give, "קלפים",
+            "שלב 1: כמה קלפים קיבלה $y בכל הסבבים?\n$rounds × $give = ${rounds * give}\nשלב 2: מוסיפים למה שהיה לה:\n$start + ${rounds * give} = ${start + rounds * give}")
+    },
+    {
+        val box = listOf(6, 10, 12).random(); val left = rnd(1, 5); val total = 2 * box + left
+        WordProblem("eggs", "לְ${BOYS.random()} יֵשׁ $total בֵּיצִים, וְהוּא מְסַדֵּר אוֹתָן בְּ-2 תְּבָנִיּוֹת. בְּכָל תַּבְנִית יֵשׁ מָקוֹם לְ-$box בֵּיצִים. כַּמָּה בֵּיצִים נִשְׁאֲרוּ בְּלִי מָקוֹם?", TWO,
+            "$total − 2 × $box", listOf("$total − $box", "$total : 2", "$total + 2 × $box"), left, "ביצים",
+            "שלב 1: כמה ביצים נכנסות בשתי התבניות?\n2 × $box = ${2 * box}\nשלב 2: כמה נשארו בחוץ?\n$total − ${2 * box} = $left")
     },
 )
 

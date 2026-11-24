@@ -43,6 +43,8 @@ import java.util.UUID
  *   furniture + friends). A new tablet with an empty house therefore takes the phone's game.
  * - Both sides changed since the last sync: the newer change wins.
  * - The side that loses is never just thrown away: it is uploaded to sync/backup/ so a parent can restore it.
+ * - Parent device (test mode): only downloads. What a parent tries out there never reaches the kid's
+ *   game (points, purchases, house, even parent "add points"); it is replaced by the cloud copy at the next sync.
  */
 object Sync {
     private const val REPO = "dmeltz/my-practice-data"
@@ -81,6 +83,7 @@ object Sync {
     fun changed(profile: String) {
         if (!::app.isInitialized) return
         meta().edit().putBoolean("dirty_$profile", true).putLong("rev_$profile", System.currentTimeMillis()).apply()
+        if (Store.parentDevice) return
         pushJob?.cancel()
         pushJob = scope.launch {
             delay(4000)
@@ -107,14 +110,25 @@ object Sync {
             Store.addPoints(profile, n)
             pushJob?.cancel()
             sync(profile)
-            done(if (enabled && Report.token(app).isNotEmpty()) "נוסף ✓ $lastStatus" else "נוסף במכשיר הזה ✓")
+            done(if (Store.parentDevice) "נוסף רק במכשיר הזה (מצב ניסוי, לא נשמר בענן)"
+                else if (enabled && Report.token(app).isNotEmpty()) "נוסף ✓ $lastStatus" else "נוסף במכשיר הזה ✓")
         }
+    }
+
+    /** This device stopped being a parent (test) device: drop test changes, take the cloud game next sync. */
+    fun leftTestMode() {
+        if (!::app.isInitialized) return
+        val m = meta(); val e = m.edit()
+        m.all.keys.filter { it.startsWith("dirty_") }.forEach { e.remove(it) }
+        m.all.keys.filter { it.startsWith("base_") }.forEach { e.putLong(it, 0L) }
+        e.apply()
+        Store.profile?.let { now(it) }
     }
 
     /** Leaving the app: upload a waiting change now instead of in a few seconds. */
     fun flushPending() {
         val p = Store.profile ?: return
-        if (::app.isInitialized && meta().getBoolean("dirty_$p", false)) now(p)
+        if (::app.isInitialized && !Store.parentDevice && meta().getBoolean("dirty_$p", false)) now(p)
     }
 
     private class Retry : Exception()
@@ -136,6 +150,14 @@ object Sync {
                 val base = m.getLong("base_$profile", -1L)
                 val local = snapshot(profile)
                 val result: String
+                if (Store.parentDevice) {
+                    // Test mode: never upload, never back up; just take the kid's real game.
+                    result = if (remote == null) "מצב ניסוי: אין עדיין משחק בענן"
+                        else if (remote.rev == base && !dirty) "מעודכן ✓ (מצב ניסוי)"
+                        else { adopt(profile, remote); "מצב ניסוי: נטען המשחק מהענן ✓" }
+                    setStatus("$result ($time)")
+                    break
+                }
                 when {
                     remote == null -> {
                         // Nobody uploaded this kid yet: this device's game becomes the shared one.

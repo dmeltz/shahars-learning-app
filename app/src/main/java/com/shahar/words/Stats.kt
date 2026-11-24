@@ -53,7 +53,8 @@ object Stats {
 
     /** Called by Store when an answer is scored. */
     fun answered(key: String, ok: Boolean, pts: Int) {
-        if (!::app.isInitialized) return
+        // Parent device = test mode: parents' tries must not enter the kids' stats.
+        if (!::app.isInitialized || Store.parentDevice) return
         try {
             val f = openFile()
             if (!f.exists()) {
@@ -156,6 +157,7 @@ object Stats {
         if (!::app.isInitialized) return
         try {
             endSegment()
+            if (Store.parentDevice) { segs.clear(); return }
             for ((profile, list) in segs.groupBy({ it.first }, { it.second })) {
                 val start = list.first().optString("start")
                 val sums = linkedMapOf("learn" to 0L, "house" to 0L, "shop" to 0L, "other" to 0L)
